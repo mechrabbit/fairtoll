@@ -1,0 +1,41 @@
+{
+	"name": "fairtoll",
+	"version": "0.0.0",
+	"private": true,
+	"license": "UNLICENSED",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/core/index.d.ts",
+			"default": "./dist/core/index.js"
+		},
+		"./express": {
+			"types": "./dist/express/index.d.ts",
+			"default": "./dist/express/index.js"
+		},
+		"./worker": {
+			"types": "./dist/worker/index.d.ts",
+			"default": "./dist/worker/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"lint": "eslint .",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "1.4.6",
+		"@types/node": "24.19.2",
+		"eslint": "10.13.0",
+		"typescript": "6.0.3",
+		"typescript-eslint": "8.72.0",
+		"vitest": "5.0.5"
+	}
+}
