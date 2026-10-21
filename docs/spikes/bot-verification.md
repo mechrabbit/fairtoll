@@ -13,7 +13,7 @@ The classifier checks these signals in this order and stops at the first one tha
 5. **Bot claim with no passing check.** A known AI user-agent, or any `Signature` header, with no passing check above makes the request an unverified bot.
 6. **No bot signals.** Everything else is a human.
 
-Version 1 leaves out reverse DNS, the Cloudflare bot score, and TLS fingerprints. See [Signals left out of version 1](#signals-left-out-of-version-1).
+Version 1 leaves out reverse DNS, the Cloudflare bot score, and TLS fingerprints. See [Signals left out of version 1](#signals-left-out-of-version-1). [The catalog of bot detection methods](bot-detection-methods.md) covers every other method and its limits.
 
 The order follows three reasons:
 
