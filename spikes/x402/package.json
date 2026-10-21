@@ -1,0 +1,21 @@
+{
+  "name": "fairtoll-spike-x402",
+  "version": "1.0.0",
+  "scripts": {
+    "node": "node run-node.mjs",
+    "worker": "node run-worker.mjs",
+    "testnet": "node run-testnet.mjs",
+    "prices": "node price-parsing.mjs"
+  },
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/hono": "2.28.0",
+    "esbuild": "0.28.2",
+    "hono": "4.13.13",
+    "miniflare": "4.20260730.0",
+    "viem": "2.57.7"
+  }
+}
