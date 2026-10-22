@@ -355,16 +355,11 @@ Options that change responses can only be opt-in rollout steps after "block unve
 4. Private Access Token challenges.
 5. Traps.
 
-### Decide where detection results go
+### Where detection results land
 
-The four classes have no slot for a suspected bot. A detection hit has two possible destinations:
+Issue #7 defines the human class as "no bot signals were found". A detection hit is a bot signal, so the request is an unverified bot. Once a publisher turns on "block unverified bots", every false positive of every detection method becomes a blocked person.
 
-- **Unverified bot.** Detection then blocks some real people as soon as a publisher turns on "block unverified bots".
-- **Human, with a recorded reason.** Detection then shows up in the traffic report and changes no decisions.
-
-Anubis shows a third option. Its rules add weights to a score, and thresholds pick a graduated response ([Anubis thresholds](https://github.com/TecharoHQ/anubis/blob/main/docs/docs/admin/configuration/thresholds.mdx)). In Fairtoll, that would be a detection score recorded with the class. A later policy rule could act on the score without changing the four classes.
-
-That is a product decision for the domain types in #6, not something this research can settle.
+Adding a detection method therefore means judging its false-positive rate first. A method that misfires on real people, such as a hosting-network check that catches VPN users, can record its finding in the reason without counting as a bot signal. Anubis takes a related approach. Its rules add weights to a score, and thresholds pick a graduated response ([Anubis thresholds](https://github.com/TecharoHQ/anubis/blob/main/docs/docs/admin/configuration/thresholds.mdx)). Version 1 adds no detection methods, so this applies to later work only.
 
 ## Unconfirmed
 
