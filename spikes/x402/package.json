@@ -6,7 +6,8 @@
     "worker": "node run-worker.mjs",
     "testnet": "node run-testnet.mjs",
     "prices": "node price-parsing.mjs",
-    "duplicate": "node run-duplicate.mjs"
+    "duplicate": "node run-duplicate.mjs",
+    "methods": "node run-methods.mjs"
   },
   "type": "module",
   "private": true,
