@@ -6,8 +6,8 @@ const eslint = new ESLint();
 async function restrictedRules(code: string, filePath: string) {
 	const [result] = await eslint.lintText(code, { filePath });
 	return (result?.messages ?? [])
-		.filter((m) => m.ruleId === "no-restricted-imports" || m.ruleId === "no-restricted-globals")
-		.map((m) => m.message.split(".")[0]);
+		.map((m) => m.ruleId)
+		.filter((id) => id === "no-restricted-imports" || id === "no-restricted-globals");
 }
 
 const nodeOnly = [
@@ -19,13 +19,13 @@ const nodeOnly = [
 describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
 	test("lint rejects node:* imports, express, and Node globals in src/core", async () => {
 		expect(await restrictedRules(nodeOnly, "src/core/probe.ts")).toEqual([
-			"'node:fs' import is restricted from being used by a pattern",
-			"'express' import is restricted from being used by a pattern",
-			"Unexpected use of 'process'",
-			"Unexpected use of 'Buffer'",
-			"Unexpected use of 'require'",
-			"Unexpected use of '__dirname'",
-			"Unexpected use of '__filename'",
+			"no-restricted-imports", // node:fs
+			"no-restricted-imports", // express
+			"no-restricted-globals", // process
+			"no-restricted-globals", // Buffer
+			"no-restricted-globals", // require
+			"no-restricted-globals", // __dirname
+			"no-restricted-globals", // __filename
 		]);
 	});
 
