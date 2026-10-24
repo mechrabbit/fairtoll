@@ -89,7 +89,8 @@ export interface DecisionEvent {
 	readonly payer?: PayerClass;
 	readonly reason: string;
 	readonly action: ActionKind;
-	readonly price?: Price;
+	/** The charged price in micro-USD, as an integer string such as "2000", so the event serializes to JSON. */
+	readonly microUsd?: string;
 }
 
 /**

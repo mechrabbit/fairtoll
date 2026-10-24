@@ -104,7 +104,7 @@ function parseRule(input: unknown, field: string, fail: Fail): PolicyRule | unde
 		fail(`${field}.path`, 'must start with "/" and may end in "*" to match a prefix, such as "/articles/*"');
 	}
 
-	const actionsInput = input.actions ?? {};
+	const actionsInput = input.actions === undefined ? {} : input.actions;
 	if (!isObject(actionsInput)) {
 		fail(`${field}.actions`, "must be an object");
 		return undefined;

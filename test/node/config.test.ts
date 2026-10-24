@@ -88,6 +88,7 @@ describe("invalid configs are rejected with the failing field", () => {
 		["not an object", "rules", ["config"]],
 		["a misspelled top-level field", { rule: [] }, ["rule"]],
 		["rules that are not an array", { rules: {} }, ["rules"]],
+		["actions set to null", { rules: [{ path: "/", actions: null }] }, ["rules[0].actions"]],
 		["a path without a leading slash", { rules: [{ path: "articles" }] }, ["rules[0].path"]],
 		["a * before the end of a path", { rules: [{ path: "/*/x" }] }, ["rules[0].path"]],
 		["an unknown class", { rules: [{ path: "/", actions: { robot: "block" } }] }, ["rules[0].actions.robot"]],
