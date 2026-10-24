@@ -1,8 +1,12 @@
 declare const brand: unique symbol;
 type Brand<T, Name extends string> = T & { readonly [brand]: Name };
 
+/** Who sent a request, before counting any payment it carries. Policy rules set an action for each. */
+export const payerClasses = ["human", "verifiedAiBuyer", "unverifiedBot"] as const;
+export type PayerClass = (typeof payerClasses)[number];
+
 /** The four classes from the README. Every request gets exactly one. */
-export const requestClasses = ["human", "verifiedAiBuyer", "unverifiedBot", "payingAgent"] as const;
+export const requestClasses = [...payerClasses, "payingAgent"] as const;
 export type RequestClass = (typeof requestClasses)[number];
 
 /**
@@ -31,10 +35,16 @@ export type ActionKind = Action["kind"];
  */
 export type PathPattern = Brand<string, "PathPattern">;
 
+/**
+ * A rule sets no action for paying agents. A paid request is the retry after a 402, and x402
+ * accepts it only at the price the 402 quoted. So a paying agent gets its payer's action, and
+ * a charge is checked at the payer's price. Any other action for paying agents would either
+ * let a forged payment header through free or reject every real payment.
+ */
 export interface PolicyRule {
 	readonly path: PathPattern;
-	/** Every class has an action. A class the config leaves out is allowed. */
-	readonly actions: Readonly<Record<RequestClass, Action>>;
+	/** Every payer class has an action. A class the config leaves out is allowed. */
+	readonly actions: Readonly<Record<PayerClass, Action>>;
 }
 
 export interface PaymentConfig {
@@ -52,12 +62,18 @@ export interface Config {
 	readonly payment?: PaymentConfig;
 }
 
-export interface ClassifiedRequest {
+interface ClassifiedBase {
 	readonly request: Request;
-	readonly class: RequestClass;
 	/** Why the classifier chose the class, for the event log. */
 	readonly reason: string;
+	/** The bot the request claims or proves to be, such as "GPTBot", when the classifier knows it. */
+	readonly agent?: string;
 }
+
+/** A paying agent carries a payment. Its `payer` is the class it would have without one. */
+export type ClassifiedRequest =
+	| (ClassifiedBase & { readonly class: PayerClass })
+	| (ClassifiedBase & { readonly class: "payingAgent"; readonly payer: PayerClass });
 
 export interface Decision {
 	readonly action: Action;
@@ -71,6 +87,9 @@ export interface DecisionEvent {
 	readonly method: string;
 	readonly path: string;
 	readonly class: RequestClass;
+	/** Set for a paying agent: the class whose action priced it. */
+	readonly payer?: PayerClass;
+	readonly agent?: string;
 	readonly reason: string;
 	readonly action: ActionKind;
 	readonly price?: Price;
@@ -78,8 +97,9 @@ export interface DecisionEvent {
 
 /**
  * Returns the price to charge. `configured` is the price from the matching rule, and the
- * default hook returns it unchanged. A hook must return the same price for the same request
- * from the 402 until the paid retry, or x402 rejects the retry.
+ * default hook returns it unchanged. A hook can price by `agent`, but it must return the same
+ * price for the 402 and for the paid retry, or x402 rejects the retry. For a paying agent,
+ * price it as its `payer` class.
  */
 export type PricingHook = (request: ClassifiedRequest, configured: Price) => Price | Promise<Price>;
 

@@ -26,7 +26,7 @@ describe("the four rollout steps parse", () => {
 	test("2. block unverified bots", () => {
 		expect(parsed({ rules: [{ path: "/*", actions: { unverifiedBot: "block" } }] })).toEqual({
 			rules: [
-				{ path: "/*", actions: { human: allow, verifiedAiBuyer: allow, unverifiedBot: block, payingAgent: allow } },
+				{ path: "/*", actions: { human: allow, verifiedAiBuyer: allow, unverifiedBot: block } },
 			],
 		});
 	});
@@ -37,7 +37,7 @@ describe("the four rollout steps parse", () => {
 			rules: [
 				{
 					path: "/articles/*",
-					actions: { unverifiedBot: "block", verifiedAiBuyer: { charge: "0.002" }, payingAgent: { charge: "0.002" } },
+					actions: { unverifiedBot: "block", verifiedAiBuyer: { charge: "0.002" } },
 				},
 				{ path: "/*", actions: { unverifiedBot: "block" } },
 			],
@@ -47,7 +47,6 @@ describe("the four rollout steps parse", () => {
 			human: allow,
 			verifiedAiBuyer: charge(2000n),
 			unverifiedBot: block,
-			payingAgent: charge(2000n),
 		});
 		expect(config.rules[1]?.path).toBe("/*");
 	});
@@ -59,22 +58,19 @@ describe("the four rollout steps parse", () => {
 				{ path: "/about", actions: {} },
 				{
 					path: "/reports/*",
-					actions: {
-						verifiedAiBuyer: { charge: "1.5" },
-						unverifiedBot: { charge: "1.5" },
-						payingAgent: { charge: "1.5" },
-					},
+					actions: { human: { charge: "1.5" }, verifiedAiBuyer: { charge: "1.5" }, unverifiedBot: { charge: "5" } },
 				},
 				{
 					path: "/*",
-					actions: { verifiedAiBuyer: "requireLicense", unverifiedBot: "block", payingAgent: { charge: "0.01" } },
+					actions: { verifiedAiBuyer: "requireLicense", unverifiedBot: { charge: "0.01" } },
 				},
 			],
 		});
 		expect(config.rules.map((r) => r.path)).toEqual(["/about", "/reports/*", "/*"]);
-		expect(config.rules[1]?.actions.unverifiedBot).toEqual(charge(1_500_000n));
+		expect(config.rules[1]?.actions.verifiedAiBuyer).toEqual(charge(1_500_000n));
+		expect(config.rules[1]?.actions.unverifiedBot).toEqual(charge(5_000_000n));
 		expect(config.rules[2]?.actions.verifiedAiBuyer).toEqual({ kind: "requireLicense" });
-		expect(config.rules[2]?.actions.payingAgent).toEqual(charge(10_000n));
+		expect(config.rules[2]?.actions.unverifiedBot).toEqual(charge(10_000n));
 	});
 
 	test("a wallet with no charging rule is valid, so charging turns off without losing it", () => {
@@ -96,25 +92,20 @@ describe("invalid configs are rejected with the failing field", () => {
 		["a * before the end of a path", { rules: [{ path: "/*/x" }] }, ["rules[0].path"]],
 		["an unknown class", { rules: [{ path: "/", actions: { robot: "block" } }] }, ["rules[0].actions.robot"]],
 		["an unknown action", { rules: [{ path: "/", actions: { human: "deny" } }] }, ["rules[0].actions.human"]],
-		["charge without a price", paidRule({ payingAgent: "charge" }), ["rules[0].actions.payingAgent"]],
-		["a price as a number", paidRule({ payingAgent: { charge: 0.002 } }), ["rules[0].actions.payingAgent.charge"]],
-		["a price of zero", paidRule({ payingAgent: { charge: "0" } }), ["rules[0].actions.payingAgent.charge"]],
-		["a negative price", paidRule({ payingAgent: { charge: "-1" } }), ["rules[0].actions.payingAgent.charge"]],
+		["charge without a price", paidRule({ verifiedAiBuyer: "charge" }), ["rules[0].actions.verifiedAiBuyer"]],
+		["a price as a number", paidRule({ verifiedAiBuyer: { charge: 0.002 } }), ["rules[0].actions.verifiedAiBuyer.charge"]],
+		["a price of zero", paidRule({ verifiedAiBuyer: { charge: "0" } }), ["rules[0].actions.verifiedAiBuyer.charge"]],
+		["a negative price", paidRule({ verifiedAiBuyer: { charge: "-1" } }), ["rules[0].actions.verifiedAiBuyer.charge"]],
 		[
 			"a price below one micro-USD",
-			paidRule({ payingAgent: { charge: "0.0000004" } }),
-			["rules[0].actions.payingAgent.charge"],
+			paidRule({ verifiedAiBuyer: { charge: "0.0000004" } }),
+			["rules[0].actions.verifiedAiBuyer.charge"],
 		],
-		["a charging rule with no payment", { rules: [{ path: "/", actions: { payingAgent: { charge: "1" } } }] }, ["payment"]],
+		["a charging rule with no payment", { rules: [{ path: "/", actions: { human: { charge: "1" } } }] }, ["payment"]],
 		[
-			"a rule that charges buyers but lets paying agents through",
-			paidRule({ verifiedAiBuyer: { charge: "1" } }),
+			"an action for paying agents, which always pay their own class's price",
+			paidRule({ verifiedAiBuyer: { charge: "1" }, payingAgent: "allow" }),
 			["rules[0].actions.payingAgent"],
-		],
-		[
-			"a rule that quotes one price and accepts another",
-			paidRule({ verifiedAiBuyer: { charge: "1" }, payingAgent: { charge: "2" } }),
-			["rules[0].actions"],
 		],
 		["a wallet address that is not an address", { payment: { payTo: "me", network: "eip155:8453" } }, ["payment.payTo"]],
 		["an unsupported network", { payment: { payTo: wallet, network: "solana" } }, ["payment.network"]],

@@ -1,14 +1,14 @@
 import {
 	networks,
-	requestClasses,
+	payerClasses,
 	type Action,
 	type Config,
 	type Network,
 	type PathPattern,
+	type PayerClass,
 	type PaymentConfig,
 	type PolicyRule,
 	type Price,
-	type RequestClass,
 	type WalletAddress,
 } from "./types.js";
 
@@ -109,26 +109,19 @@ function parseRule(input: unknown, field: string, fail: Fail): PolicyRule | unde
 		fail(`${field}.actions`, "must be an object");
 		return undefined;
 	}
-	rejectUnknownKeys(actionsInput, requestClasses, `${field}.actions.`, fail);
+	if ("payingAgent" in actionsInput) {
+		fail(`${field}.actions.payingAgent`, "cannot be set: a paying agent is charged at the price its own class was quoted");
+	}
+	rejectUnknownKeys(actionsInput, [...payerClasses, "payingAgent"], `${field}.actions.`, fail);
 
-	const actions = {} as Record<RequestClass, Action>;
+	const actions = {} as Record<PayerClass, Action>;
 	let actionsOk = true;
-	for (const cls of requestClasses) {
+	for (const cls of payerClasses) {
 		const action = parseAction(actionsInput[cls], `${field}.actions.${cls}`, fail);
 		if (action) actions[cls] = action;
 		else actionsOk = false;
 	}
 	if (!pathOk || !actionsOk) return undefined;
-
-	// A paid retry arrives as a paying agent, and x402 only accepts it at the price the
-	// 402 quoted. So when a rule charges anyone, paying agents must be charged the same price.
-	// Without this, a forged payment header would get the page free.
-	const prices = new Set(Object.values(actions).flatMap((a) => (a.kind === "charge" ? [a.price.microUsd] : [])));
-	if (prices.size > 0 && actions.payingAgent.kind !== "charge") {
-		fail(`${field}.actions.payingAgent`, "must charge when any class in the rule charges");
-	} else if (prices.size > 1) {
-		fail(`${field}.actions`, "every class that charges must charge the same price");
-	}
 
 	return { path: path as PathPattern, actions };
 }
