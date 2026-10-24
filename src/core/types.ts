@@ -66,8 +66,6 @@ interface ClassifiedBase {
 	readonly request: Request;
 	/** Why the classifier chose the class, for the event log. */
 	readonly reason: string;
-	/** The bot the request claims or proves to be, such as "GPTBot", when the classifier knows it. */
-	readonly agent?: string;
 }
 
 /** A paying agent carries a payment. Its `payer` is the class it would have without one. */
@@ -89,23 +87,17 @@ export interface DecisionEvent {
 	readonly class: RequestClass;
 	/** Set for a paying agent: the class whose action priced it. */
 	readonly payer?: PayerClass;
-	readonly agent?: string;
 	readonly reason: string;
-	/** The path of the rule that matched, absent when none did. */
-	readonly rule?: PathPattern;
 	readonly action: ActionKind;
 	readonly price?: Price;
-	/** Set when a stage failed or timed out and the request passed through. */
-	readonly error?: string;
 }
 
 /**
- * Returns the price to charge, or undefined to charge `configured`, the price from the
- * matching rule. The default hook returns `configured`. A hook can price by `agent`, but it must return the same
- * price for the 402 and for the paid retry, or x402 rejects the retry. For a paying agent,
- * price it as its `payer` class.
+ * Returns the price to charge. `configured` is the price from the matching rule, and the
+ * default hook returns it unchanged. A hook must return the same price for the 402 and for
+ * the paid retry, or x402 rejects the retry. For a paying agent, price it as its `payer` class.
  */
-export type PricingHook = (request: ClassifiedRequest, configured: Price) => Price | undefined | Promise<Price | undefined>;
+export type PricingHook = (request: ClassifiedRequest, configured: Price) => Price | Promise<Price>;
 
 export type Classifier = (request: Request) => Promise<ClassifiedRequest>;
 
