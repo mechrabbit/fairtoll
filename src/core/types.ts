@@ -53,8 +53,8 @@ export interface PaymentConfig {
 }
 
 /**
- * The whole config. Rules are checked in order and the first match decides. A request
- * that matches no rule is allowed, so a config with no rules only observes.
+ * The whole config. A request that matches no rule is allowed, so a config with no rules
+ * only observes. Which rule wins when several match is the policy engine's choice.
  * `payment` is present whenever any rule charges.
  */
 export interface Config {
@@ -91,17 +91,21 @@ export interface DecisionEvent {
 	readonly payer?: PayerClass;
 	readonly agent?: string;
 	readonly reason: string;
+	/** The path of the rule that matched, absent when none did. */
+	readonly rule?: PathPattern;
 	readonly action: ActionKind;
 	readonly price?: Price;
+	/** Set when a stage failed or timed out and the request passed through. */
+	readonly error?: string;
 }
 
 /**
- * Returns the price to charge. `configured` is the price from the matching rule, and the
- * default hook returns it unchanged. A hook can price by `agent`, but it must return the same
+ * Returns the price to charge, or undefined to charge `configured`, the price from the
+ * matching rule. The default hook returns `configured`. A hook can price by `agent`, but it must return the same
  * price for the 402 and for the paid retry, or x402 rejects the retry. For a paying agent,
  * price it as its `payer` class.
  */
-export type PricingHook = (request: ClassifiedRequest, configured: Price) => Price | Promise<Price>;
+export type PricingHook = (request: ClassifiedRequest, configured: Price) => Price | undefined | Promise<Price | undefined>;
 
 export type Classifier = (request: Request) => Promise<ClassifiedRequest>;
 
