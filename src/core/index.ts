@@ -1,2 +1,2 @@
-export * from "./types.js";
-export { parseConfig, parsePrice, type ConfigError, type ParseResult } from "./config.js";
+export { requestClasses, type RequestClass } from "./types.js";
+export { parseConfig, type Config, type ConfigError, type ParseResult } from "./config.js";
