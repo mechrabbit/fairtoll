@@ -6,9 +6,9 @@ This spike answers issue #4 for the classifier in issue #7. It lists the signals
 
 The classifier checks these signals in this order and stops at the first one that decides the class:
 
-1. **x402 payment header.** A well-formed `PAYMENT-SIGNATURE` or `X-PAYMENT` header makes the request a paying agent. The charge step confirms the payment.
-2. **Cloudflare verified-bot fields**, in the Worker adapter only. `request.cf.botManagement.verifiedBot === true` makes the request a verified AI buyer.
-3. **Web Bot Auth signature.** A valid signature from an operator in the registry makes the request a verified AI buyer. A signature that fails, or one from an origin outside the registry, makes it an unverified bot.
+1. **x402 payment header, on a path whose policy charges.** There, a well-formed `PAYMENT-SIGNATURE` header makes the request a paying agent, and the charge step confirms the payment. On every other path the header decides nothing. The reason records "payment claimed" and the classifier goes on to step 2.
+2. **Cloudflare verified-bot fields**, in the Worker adapter only. `request.cf.botManagement.verifiedBot === true` makes the request a verified AI buyer when its user-agent matches a registry row. A verified bot with no registry row, such as an uptime monitor, goes on to step 3.
+3. **Web Bot Auth signature.** A valid signature from an operator in the registry, over an `@authority` that is one of the site's own hosts, makes the request a verified AI buyer. A signature that fails, one from an origin outside the registry, or one from a hosted signing platform makes it an unverified bot.
 4. **Published IP ranges, matched to the user-agent claim.** A client IP inside the claimed operator's published list makes the request a verified AI buyer.
 5. **Bot claim with no passing check.** A known AI user-agent, or any `Signature` header, with no passing check above makes the request an unverified bot.
 6. **No bot signals.** Everything else is a human.
@@ -17,7 +17,7 @@ Version 1 leaves out reverse DNS, the Cloudflare bot score, and TLS fingerprints
 
 The order follows three reasons:
 
-- The payment header comes first because it routes the request to the charge step, and the charge step does its own verification through the facilitator.
+- The payment header comes first on charged paths because it routes the request to the charge step, and the charge step does its own verification through the facilitator. Anywhere else nothing would check it, so a forged header must not change the class there.
 - The Cloudflare fields come next because they cost nothing to read, and the README says the Worker adapter complements Cloudflare rather than redoing its work.
 - Signatures rank above IP ranges because a signature proves possession of a key the operator published. An IP proves only which network the request left from.
 
@@ -58,6 +58,10 @@ The draft sets negative-cache entries to expire within 5 minutes. Operators rota
 **Library.** Cloudflare's `web-bot-auth` package (v0.2.0, 2026-08-31) exports `verify`, `parseSignatureAgentHeader`, and `verifierFromJWK` from `web-bot-auth/crypto` ([GitHub](https://github.com/cloudflare/web-bot-auth)). It uses only `crypto.subtle` and Fetch `Request` headers. That means it runs on Workers and on Node 20.19.3, 22.13.0, or later, where WebCrypto Ed25519 is stable ([Node docs](https://nodejs.org/api/webcrypto.html), [Workers docs](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)). `verify` does not fetch directories. The caller passes a resolver that returns the key. The README says the code is not audited.
 
 **Why the registry is an allowlist.** `Signature-Agent` is supplied by the client. Anyone can host a directory and sign with its key, so a valid signature from an unknown origin proves only that the sender controls that origin. Fetching an arbitrary origin inline is also a server-side request forgery risk and adds latency to the request. The classifier fetches only the origins in its operator registry. A publisher can add origins in config.
+
+**Why a registry origin is not always an operator.** Some registry origins sign for whoever uses them. Browserbase and Cloudflare Browser Rendering sign every request their customers' browsers send, and any scraper can be a customer. A valid signature from these origins proves which platform sent the request, not who operates the agent. Each registry row therefore records whether its origin is an operator or a platform. A platform signature makes the request an unverified bot with the reason `platform-signer`, unless a publisher opts that platform in through config.
+
+**Why `@authority` must be one of the site's own hosts.** The signature covers only `@authority` and `signature-agent`, not the path or method. So a signature that ChatGPT agent sent to an attacker's site is valid for any path on that host until it expires. If the verifier rebuilt `@authority` from whatever Host or `X-Forwarded-Host` the client sends, the attacker could replay those headers to any Fairtoll site with the attacker's host in them. The config therefore lists the site's own hostnames, and a signature whose `@authority` is not in that list fails.
 
 ## Published IP ranges
 
@@ -104,7 +108,7 @@ The Worker reads these fields ([bot management variables](https://developers.clo
 
 `botManagement` exists only on Enterprise zones with Bot Management ([verified_bot field](https://developers.cloudflare.com/ruleset-engine/rules-language/fields/reference/cf.bot_management.verified_bot/)). Free, Pro, and Business plans get Bot Fight Mode or Super Bot Fight Mode as zone settings, and none of their docs promise a field in Workers. Most publishers on Cloudflare will therefore not have these fields. On those plans the Worker adapter verifies Web Bot Auth and IP ranges itself. This does not rebuild a Cloudflare feature, because Cloudflare does not expose its result to those plans.
 
-The classifier uses only `verifiedBot === true` and `signedAgent === true`. A false or missing value is not evidence of anything. The classifier does not use the score, for two reasons:
+The classifier uses only `verifiedBot === true` and `signedAgent === true`. A false or missing value is not evidence of anything. Cloudflare verifies many bots that are not AI bots, such as uptime monitors, link previewers, and SEO tools, and `request.cf` carries no bot name. The classifier therefore accepts a Cloudflare verdict only when the user-agent matches a registry row. That row supplies the operator, the agent, and the category for the reason. The method is recorded as `cloudflare`. The Express adapter would place the same request in the same class through its own checks, which keeps one config meaning the same thing on and off Cloudflare. The classifier does not use the score, for two reasons:
 
 - The score is a heuristic, not a cryptographic check.
 - `wrangler dev` fills `botManagement` with a placeholder `score: 99` and `verifiedBot: false` (miniflare 4.20260730.0, `fallbackCf`). A score of 99 must never read as "human".
@@ -117,14 +121,14 @@ x402 v2 sends the payment in the `PAYMENT-SIGNATURE` request header. x402 v1 sen
 
 The classifier runs these checks and calls no facilitator:
 
-1. Read `PAYMENT-SIGNATURE`. If the charge step supports v1, also read `X-PAYMENT`.
+1. Read `PAYMENT-SIGNATURE`, and only on a path whose policy charges. Version 1 does not read `X-PAYMENT`, because the charge step is built on `@x402/core`, whose server reads only `PAYMENT-SIGNATURE`.
 2. Reject a header longer than a fixed cap before decoding it.
 3. Decode it with `decodePaymentSignatureHeader` from `@x402/core/http`, inside `try`. The function throws on bad base64 or bad JSON and does no schema check.
 4. Validate the result with `parsePaymentPayload` from `@x402/core/schemas`. It is a zod union on `x402Version`.
 
-A payload that passes makes the request a paying agent. The reason records "payment claimed", not "paid". A forged, well-formed header costs nothing to send. Only the charge step proves payment, through `x402HTTPResourceServer.processHTTPRequest`, which verifies with the facilitator and then settles. A header that fails to decode or parse does not make the request a paying agent. The classifier records the failure and goes on to the next signal.
+A payload that passes makes the request a paying agent. The reason records "payment claimed", not "paid". A forged, well-formed header costs nothing to send. Only the charge step proves payment, through `x402HTTPResourceServer.processHTTPRequest`, which verifies with the facilitator and then settles. If the facilitator rejects the payment, the charge step answers with a 402, as it would with no header. A header that fails to decode or parse does not make the request a paying agent. The classifier records the failure and goes on to the next signal.
 
-This puts one constraint on the policy engine in #8. The paying-agent class must lead to the charge action. If a publisher maps the paying-agent class to allow, a forged header gets free access.
+The classifier only reads the header on a charged path, so the paying-agent class always leads to the charge action, and the charge step always checks the payment. On a path that does not charge, a forged header changes nothing. A scraper that adds one is still an unverified bot, and the block step still blocks it. The event log still records its real class. The policy engine in #8 gets this from the classifier and does not have to enforce it.
 
 Cloudflare pay per crawl uses its own headers, `crawler-exact-price` and `crawler-max-price`, which the crawler must cover in its Web Bot Auth signature ([docs](https://developers.cloudflare.com/ai-crawl-control/features/pay-per-crawl/use-pay-per-crawl-as-ai-owner/crawl-pages/)). Cloudflare charges at its edge as merchant of record, so these headers are not a Fairtoll payment signal. The event log may record them as intent.
 
@@ -144,11 +148,14 @@ Cloudflare pay per crawl uses its own headers, `crawler-exact-price` and `crawle
 
 Issue #7 should build on these points:
 
-- **Operator registry.** Ship a static table with one row per operator agent. Each row has the user-agent pattern, the IP list URLs, and the Web Bot Auth origins. Publishers can extend it in config. Generate the table from [arcjet/well-known-bots](https://github.com/arcjet/well-known-bots) instead of writing it by hand. It is MIT-licensed and covers 811 bots. Each entry already holds accepted and forbidden user-agent patterns, sample user-agents to test the patterns against, and verification sources. Those sources are IP-list URLs with a JSONPath selector, reverse-DNS masks, and Web Bot Auth directories. A build script can turn the AI-category entries into the table and keep the attribution. Fixes go upstream. The classifier's reason carries the operator, the agent, and the method (`cloudflare`, `web-bot-auth`, or `ip-range`). That lets the event log and later policy rules tell Googlebot from GPTBot, because both are in the verified AI buyer class.
+- **Operator registry.** Ship a static table with one row per operator agent. Each row has the user-agent pattern, the IP list URLs, the Web Bot Auth origins, the category, and whether its signing origin is an operator or a platform. Publishers can extend it in config. Generate the table from [arcjet/well-known-bots](https://github.com/arcjet/well-known-bots) instead of writing it by hand. It is MIT-licensed and covered 811 bots on 2026-10-21. Each entry already holds accepted and forbidden user-agent patterns, sample user-agents to test the patterns against, and verification sources. Those sources are IP-list URLs with a JSONPath selector, reverse-DNS masks, and Web Bot Auth directories. Fixes go upstream.
+- **What the registry imports.** The build script takes every entry tagged `ai` or `search-engine`, and keeps the attribution. Arcjet tags Googlebot, Bingbot, and Applebot as `search-engine`, not `ai`, so an `ai`-only import would drop them and Googlebot would land in the human class. Signers that arcjet tags only `tool`, such as Kernel, are added by hand. Platforms such as Browserbase and Cloudflare Browser Rendering are marked as platforms whatever their tags.
+- **The reason names the operator, the agent, the category, and the method** (`cloudflare`, `web-bot-auth`, or `ip-range`). Verified search crawlers such as Googlebot are in the verified AI buyer class alongside GPTBot, so policy rules must be able to tell them apart. A default policy, and every example in the docs, must never block or charge the `search-engine` category, because doing so can drop a site from search results.
 - **Timeouts and caches.** Every directory and IP list fetch has a timeout, 500 ms as a starting value, and a cache. The cache keeps a floor TTL of 1 hour, because `chatgpt.com` serves its directory with `cache-control: no-store`. Keep the last good copy on error, and negative-cache failures for 5 minutes. On Workers, isolates do not share memory, so back the in-memory cache with the Cache API.
 - **Accept both `Signature-Agent` forms.** Google sends the dictionary form and the WG draft requires it. Cloudflare's own verifier still rejects it ([docs](https://developers.cloudflare.com/bots/reference/bot-verification/web-bot-auth/)).
 - **Match keys by `kid` or by thumbprint.** Google's key ids are six-character `kid` values such as `mhxuPw`, not JWK thumbprints. Treat the directory's self-signature as advisory, because operators sign it inconsistently.
-- **Rebuild `@authority` correctly in Express.** The signature covers the host the client used. Behind a proxy, Express needs `trust proxy` set to read `X-Forwarded-Host` and the real client IP. If this is misconfigured, signatures fail and every IP is the proxy's, so verification fails closed and the site still serves.
+- **Check `@authority` against the site's own hosts.** The config lists the hostnames the site serves. The verifier rebuilds `@authority` from the request and fails any signature whose authority is not in that list. This holds whatever the Host or `X-Forwarded-Host` header says, so a signature captured on another site cannot be replayed here.
+- **Set `trust proxy` to the exact proxy hops, never `true`.** Behind a proxy, Express needs `trust proxy` to read `X-Forwarded-Host` and the real client IP. Trusting too little fails closed: signatures fail and every IP is the proxy's, so nothing verifies and the site still serves. Trusting too much fails open. With `trust proxy: true`, or with an origin that clients can reach directly, both headers come from the client. A client could then send `X-Forwarded-For` with an IP from `gptbot.json` and pass the IP check. Name the hop count or the proxy addresses, and only read forwarded headers on traffic that came through the proxy.
 - **Anthropic's list is shared across its three agents.** A match verifies the operator, not the specific agent.
 - **IPv6.** Only the Google and Common Crawl lists include IPv6. An IPv6 request that claims any other operator cannot verify by IP.
 

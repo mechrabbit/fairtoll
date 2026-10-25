@@ -1,6 +1,6 @@
 # Catalog of bot detection methods and their limits
 
-This doc lists every method a site can use to recognize a bot or an AI agent, grouped by what the method can prove. Each group states its limits. The goal is to show which options exist for actions after version 1. The version 1 recommendation stays in [the bot-verification spike](bot-verification.md), which covers its five signals in more depth. Sources were fetched on 2026-10-21.
+This doc lists every method a site can use to recognize a bot or an AI agent, grouped by what the method can prove. Each group states its limits. The goal is to show which options exist for actions after version 1. The version 1 recommendation stays in [the bot-verification spike](bot-verification.md), which covers its six signals in more depth. Sources were fetched on 2026-10-21.
 
 ## Read the groups as verification or detection
 
@@ -26,7 +26,7 @@ Four properties decide whether a method fits Fairtoll at all:
 
 | Group | Proves | Can verify | Changes responses | Decides first request | Works off Cloudflare | Defeated by |
 | --- | --- | --- | --- | --- | --- | --- |
-| [Cryptographic bot identity](#cryptographic-bot-identity) | The operator holds a published key | Yes | No | Yes | Yes | Stolen keys only |
+| [Cryptographic bot identity](#cryptographic-bot-identity) | The operator holds a published key | Yes | No | Yes | Yes | Stolen keys, or any customer of a platform that signs for its users |
 | [Payment as a credential](#payment-as-a-credential) | Someone paid, or holds a paid token | Payment, not identity | A 402 or redirect, on charged paths only | Yes, after the retry | Depends on the scheme | Nothing, if settled |
 | [Operator network identity](#operator-network-identity) | The request left the operator's network | Yes, for the operator | No | Yes | Yes | Shared cloud egress |
 | [Edge and vendor verdicts](#edge-and-vendor-verdicts) | The vendor's own checks passed | When the vendor verified | No | Yes | Per vendor | A forged header, if the origin is reachable directly |
