@@ -1,7 +1,7 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
 import { fileSink } from "../../src/node/file-sink.js";
 
@@ -14,16 +14,38 @@ const event = (path: string): DecisionEvent => ({
 	action: "allow",
 });
 
-test("appends one JSON line per event, creating the file", async () => {
-	const path = join(await mkdtemp(join(tmpdir(), "fairtoll-")), "events.jsonl");
+let dir: string;
+beforeEach(async () => {
+	dir = await mkdtemp(join(tmpdir(), "fairtoll-"));
+});
+afterEach(async () => {
+	await rm(dir, { recursive: true, force: true });
+});
+
+test("appends one JSON line per event in arrival order, creating the file", async () => {
+	const path = join(dir, "events.jsonl");
 	const log = fileSink(path);
-	await Promise.all([log(event("/a")), log(event("/b"))]);
+	await Promise.all([log(event("/a")), log(event("/b")), log(event("/c"))]);
 
 	const lines = (await readFile(path, "utf8")).split("\n");
 	expect(lines.pop()).toBe("");
-	expect(lines.map((line) => JSON.parse(line)).sort((a, b) => a.path.localeCompare(b.path))).toEqual([event("/a"), event("/b")]);
+	expect(lines.map((line) => JSON.parse(line))).toEqual([event("/a"), event("/b"), event("/c")]);
 });
 
-test("rejects when the file can't be written, so observe can report it", async () => {
-	await expect(fileSink("/nonexistent-dir/events.jsonl")(event("/"))).rejects.toThrow(/ENOENT/);
+test("keeps what the file already holds", async () => {
+	const path = join(dir, "events.jsonl");
+	await fileSink(path)(event("/a"));
+	await fileSink(path)(event("/b"));
+
+	expect(await readFile(path, "utf8")).toBe(`${JSON.stringify(event("/a"))}\n${JSON.stringify(event("/b"))}\n`);
+});
+
+test("rejects when the file can't be written, so observe can report it, and keeps writing later events", async () => {
+	const path = join(dir, "missing-dir", "events.jsonl");
+	const log = fileSink(path);
+	await expect(log(event("/a"))).rejects.toThrow(/ENOENT/);
+
+	await mkdir(join(dir, "missing-dir"));
+	await log(event("/b"));
+	expect(await readFile(path, "utf8")).toBe(`${JSON.stringify(event("/b"))}\n`);
 });
