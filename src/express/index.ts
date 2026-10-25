@@ -37,7 +37,8 @@ function toWebRequest(req: ExpressRequest): Request {
 	for (const [name, value] of Object.entries(req.headers)) {
 		for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) headers.append(name, item);
 	}
+	// An absolute-form target such as http://host/articles/1 is routed by its path alone, so drop its origin.
 	// Appending keeps a target such as //articles/1 a path, as Express routes it, rather than a host.
-	const url = req.originalUrl.startsWith("/") ? `${origin}${req.originalUrl}` : new URL(req.originalUrl, origin);
-	return new Request(url, { headers });
+	const target = req.originalUrl.replace(/^[a-z][a-z\d+.-]*:\/\/[^/?#]*/i, "");
+	return new Request(`${origin}${target.startsWith("/") ? "" : "/"}${target}`, { headers });
 }

@@ -137,6 +137,8 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 		["an empty Host", raw("GET /articles/1 HTTP/1.1", ""), "/articles/1"],
 		["a TRACE request", raw("TRACE /articles/1 HTTP/1.1", "example.com"), "/articles/1"],
 		["a path that starts with //", raw("GET //articles/1 HTTP/1.1", "example.com"), "//articles/1"],
+		["an absolute-form target with an invalid port", raw("GET http://example.com:99999/articles/1 HTTP/1.1", "example.com"), "/articles/1"],
+		["an absolute-form target whose path starts with //", raw("GET http://example.com//articles/1 HTTP/1.1", "example.com"), "//articles/1"],
 	])("%s", async (_name, request, path) => {
 		const log = join(dir, "events.jsonl");
 		const without = await send(site(), request);
@@ -149,8 +151,11 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 
 test("if the request can't be read, the page still serves normally and the error is reported", async () => {
 	const error = vi.spyOn(console, "error").mockImplementation(() => {});
-	const raw = `GET http://example.com:99999/articles/1 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: ${gptBot}\r\nConnection: close\r\n\r\n`;
+	const raw = get("/articles/1", gptBot);
 	const without = await send(site(), raw);
+	vi.spyOn(Headers.prototype, "append").mockImplementation(() => {
+		throw new TypeError("unreadable header");
+	});
 	const withFairtoll = await send(site(fairtoll({})), raw);
 	expect(without.toString()).toMatch(/^HTTP\/1\.1 200 /);
 	expect(withFairtoll.equals(without)).toBe(true);
