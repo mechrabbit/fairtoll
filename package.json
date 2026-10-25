@@ -24,6 +24,14 @@
 	"engines": {
 		"node": ">=20"
 	},
+	"peerDependencies": {
+		"express": "^5.0.0"
+	},
+	"peerDependenciesMeta": {
+		"express": {
+			"optional": true
+		}
+	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
@@ -32,8 +40,10 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "1.4.6",
+		"@types/express": "5.0.6",
 		"@types/node": "24.19.2",
 		"eslint": "10.13.0",
+		"express": "5.2.1",
 		"typescript": "6.0.3",
 		"typescript-eslint": "8.72.0",
 		"vitest": "5.0.5"
