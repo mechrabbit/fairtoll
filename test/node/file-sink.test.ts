@@ -40,7 +40,7 @@ test("keeps what the file already holds", async () => {
 	expect(await readFile(path, "utf8")).toBe(`${JSON.stringify(event("/a"))}\n${JSON.stringify(event("/b"))}\n`);
 });
 
-test("rejects when the file can't be written, so observe can report it, and keeps writing later events", async () => {
+test("rejects on the first failed write, so observe can report it, and keeps writing later events", async () => {
 	const path = join(dir, "missing-dir", "events.jsonl");
 	const log = fileSink(path);
 	await expect(log(event("/a"))).rejects.toThrow(/ENOENT/);
@@ -48,4 +48,31 @@ test("rejects when the file can't be written, so observe can report it, and keep
 	await mkdir(join(dir, "missing-dir"));
 	await log(event("/b"));
 	expect(await readFile(path, "utf8")).toBe(`${JSON.stringify(event("/b"))}\n`);
+});
+
+test("reports a run of failed writes once, and again after a write succeeds", async () => {
+	const path = join(dir, "missing-dir", "events.jsonl");
+	const log = fileSink(path);
+	const results = await Promise.allSettled([log(event("/a")), log(event("/b")), log(event("/c"))]);
+	expect(results.map((result) => result.status)).toEqual(["rejected", "fulfilled", "fulfilled"]);
+
+	await mkdir(join(dir, "missing-dir"));
+	await log(event("/d"));
+	await rm(join(dir, "missing-dir"), { recursive: true });
+	await expect(log(event("/e"))).rejects.toThrow(/ENOENT/);
+});
+
+test("drops events once 1000 writes are waiting, reporting the first drop, until the queue drains", async () => {
+	const path = join(dir, "events.jsonl");
+	const log = fileSink(path);
+	const queued = Array.from({ length: 1000 }, (_, i) => log(event(`/${i}`)));
+	const dropped = log(event("/dropped"));
+	expect(log(event("/also-dropped"))).toBeUndefined();
+	await expect(dropped).rejects.toThrow(/dropped/);
+	await Promise.all(queued);
+
+	await log(event("/after"));
+	const lines = (await readFile(path, "utf8")).trimEnd().split("\n");
+	expect(lines).toHaveLength(1001);
+	expect(lines[1000]).toBe(JSON.stringify(event("/after")));
 });
