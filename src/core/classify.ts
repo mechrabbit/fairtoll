@@ -27,6 +27,7 @@ const aiAgents = [
 	"Diffbot",
 ];
 const aiAgentPattern = new RegExp(`\\b(${aiAgents.join("|")})\\b`, "i");
+const canonicalAgent = new Map(aiAgents.map((agent) => [agent.toLowerCase(), agent]));
 
 export interface Classification {
 	readonly class: RequestClass;
@@ -35,7 +36,8 @@ export interface Classification {
 }
 
 export function classify(request: Request): Classification {
-	const claimed = aiAgentPattern.exec(request.headers.get("user-agent") ?? "")?.[1];
+	const match = aiAgentPattern.exec(request.headers.get("user-agent") ?? "")?.[1];
+	const claimed = match && canonicalAgent.get(match.toLowerCase());
 	if (claimed) return { class: "unverifiedBot", reason: `user-agent claims ${claimed}` };
 	return { class: "human", reason: "no bot signals" };
 }
