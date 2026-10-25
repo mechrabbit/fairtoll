@@ -13,7 +13,7 @@ describe("classify", () => {
 	});
 
 	test("matching ignores case and needs the whole token", () => {
-		expect(classify(request("claudebot/1.0")).class).toBe("unverifiedBot");
+		expect(classify(request("claudebot/1.0"))).toEqual({ class: "unverifiedBot", reason: "user-agent claims ClaudeBot" });
 		expect(classify(request("NotGPTBotty/1.0")).class).toBe("human");
 	});
 
