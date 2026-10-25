@@ -3,6 +3,7 @@ import { classify, decide, observe, parseConfig } from "../core/index.js";
 import { fileSink } from "../node/file-sink.js";
 
 const defaultEventLog = "fairtoll-events.jsonl";
+const origin = "http://localhost";
 
 /**
  * Express middleware that observes every request and passes it on unchanged.
@@ -26,12 +27,17 @@ export function fairtoll(input: unknown): RequestHandler {
 	};
 }
 
-/** A Web Request with the same method, URL, and headers. It has no body, so the app still reads the body itself. */
+/**
+ * A Web Request with the request's path and headers. It has no body, so the app still reads the body itself.
+ * The origin is fixed, because the Host header is client input and nothing reads it yet. The method is left
+ * out for the same reason, and because a Web Request refuses methods such as TRACE that Express still serves.
+ */
 function toWebRequest(req: ExpressRequest): Request {
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(req.headers)) {
 		for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) headers.append(name, item);
 	}
-	const url = new URL(req.originalUrl, `${req.protocol}://${req.headers.host ?? "localhost"}`);
-	return new Request(url, { method: req.method, headers });
+	// Appending keeps a target such as //articles/1 a path, as Express routes it, rather than a host.
+	const url = req.originalUrl.startsWith("/") ? `${origin}${req.originalUrl}` : new URL(req.originalUrl, origin);
+	return new Request(url, { headers });
 }

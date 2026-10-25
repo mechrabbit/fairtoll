@@ -92,6 +92,7 @@ describe("fairtoll({}) changes no response", () => {
 	])("%s is byte for byte the same", async (_name, raw) => {
 		const without = await send(site(), raw);
 		const withFairtoll = await send(site(fairtoll({})), raw);
+		expect(without.toString()).toMatch(/^HTTP\/1\.1 (200|201|404) /);
 		expect(withFairtoll.toString()).toBe(without.toString());
 		expect(withFairtoll.equals(without)).toBe(true);
 	});
@@ -126,6 +127,34 @@ describe("the event log", () => {
 		expect(event.path).toBe("/comments");
 		expect(JSON.stringify(event)).not.toMatch(/secret/);
 	});
+});
+
+describe("requests a Web Request can't describe as sent are still logged", () => {
+	const raw = (requestLine: string, host: string) => `${requestLine}\r\nHost: ${host}\r\nUser-Agent: ${gptBot}\r\nConnection: close\r\n\r\n`;
+
+	test.each([
+		["a Host that isn't a valid URL host", raw("GET /articles/1 HTTP/1.1", "a b"), "/articles/1"],
+		["an empty Host", raw("GET /articles/1 HTTP/1.1", ""), "/articles/1"],
+		["a TRACE request", raw("TRACE /articles/1 HTTP/1.1", "example.com"), "/articles/1"],
+		["a path that starts with //", raw("GET //articles/1 HTTP/1.1", "example.com"), "//articles/1"],
+	])("%s", async (_name, request, path) => {
+		const log = join(dir, "events.jsonl");
+		const without = await send(site(), request);
+		const withFairtoll = await send(site(fairtoll({ eventLog: log })), request);
+		expect(without.toString()).toMatch(/^HTTP\/1\.1 \d{3} /);
+		expect(withFairtoll.equals(without)).toBe(true);
+		expect(await events(log)).toEqual([expect.objectContaining({ path, class: "unverifiedBot" })]);
+	});
+});
+
+test("if the request can't be read, the page still serves normally and the error is reported", async () => {
+	const error = vi.spyOn(console, "error").mockImplementation(() => {});
+	const raw = `GET http://example.com:99999/articles/1 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: ${gptBot}\r\nConnection: close\r\n\r\n`;
+	const without = await send(site(), raw);
+	const withFairtoll = await send(site(fairtoll({})), raw);
+	expect(without.toString()).toMatch(/^HTTP\/1\.1 200 /);
+	expect(withFairtoll.equals(without)).toBe(true);
+	expect(error).toHaveBeenCalledWith(expect.stringMatching(/could not read the request/), expect.any(TypeError));
 });
 
 test("if the sink throws, the page still serves normally and the error is reported", async () => {
