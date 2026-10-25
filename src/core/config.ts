@@ -13,12 +13,12 @@ export interface ConfigError {
 export type ParseResult = { readonly ok: true; readonly config: Config } | { readonly ok: false; readonly errors: readonly ConfigError[] };
 
 export function parseConfig(input: unknown): ParseResult {
-	if (typeof input !== "object" || input === null || Array.isArray(input)) {
-		return { ok: false, errors: [{ field: "config", message: "must be an object" }] };
+	if (!isPlainObject(input)) {
+		return { ok: false, errors: [{ field: "config", message: "must be a plain object" }] };
 	}
 	const errors: ConfigError[] = [];
-	const { eventLog, ...unknown } = input as Record<string, unknown>;
-	for (const key of Object.keys(unknown)) {
+	const { eventLog, ...rest } = input;
+	for (const key of Object.keys(rest)) {
 		errors.push({ field: key, message: "is not a known field" });
 	}
 	const validLog = typeof eventLog === "string" && eventLog !== "";
@@ -27,4 +27,11 @@ export function parseConfig(input: unknown): ParseResult {
 	}
 	if (errors.length > 0) return { ok: false, errors };
 	return { ok: true, config: validLog ? { eventLog } : {} };
+}
+
+/** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
+function isPlainObject(input: unknown): input is Record<string, unknown> {
+	if (typeof input !== "object" || input === null) return false;
+	const proto: unknown = Object.getPrototypeOf(input);
+	return proto === Object.prototype || proto === null;
 }
