@@ -47,7 +47,13 @@ app.use(fairtoll(config, log ? { log: (event) => console.log(`   logged ${JSON.s
 app.use(express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.path}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
-app.listen(port, () => {
+// Express passes a listen error, such as a port in use, to this callback rather than throwing it.
+app.listen(port, (error) => {
+	if (error) {
+		const reason = error.code === "EADDRINUSE" ? `port ${port} is in use. Stop what is using it, or set PORT to another port.` : error.message;
+		console.error(`Could not start the demo server: ${reason}`);
+		process.exit(1);
+	}
 	console.log(`Config: ${JSON.stringify(config)}`);
 	console.log(`Logging: ${log ? "on" : "off"}`);
 	console.log(`Listening on http://localhost:${port}. Name a visitor with a Demo-Visitor header:`);

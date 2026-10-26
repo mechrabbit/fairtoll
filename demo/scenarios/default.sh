@@ -6,8 +6,11 @@ set -e
 npm run --silent build
 export PORT="${PORT:-3000}"
 node demo/serve.js &
-trap 'kill $!' EXIT
+server=$!
+trap 'kill $server 2>/dev/null' EXIT
 sleep 1
+# Stop if the server didn't start, such as when the port is in use, so no request reaches another server.
+kill -0 $server 2>/dev/null || exit 1
 
 # send <description> <curl arguments...>
 send() {
