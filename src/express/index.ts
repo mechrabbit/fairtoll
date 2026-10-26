@@ -1,16 +1,14 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
-import { classify, decide, observe, parseConfig, type DecisionEvent, type EventSink } from "../core/index.js";
+import { classify, decide, observe, parseConfig, type EventSink } from "../core/index.js";
 
 const origin = "http://localhost";
 
 export interface Options {
-	/** Receives each event instead of stdout, such as to send it to the app's own logger. */
+	/**
+	 * Receives each event, such as to send it to the app's own logger. Without it nothing is logged,
+	 * because a path can carry a secret such as a reset token, so the publisher chooses where events go.
+	 */
 	readonly log?: EventSink;
-}
-
-/** Writes each event to stdout as one JSON line, so it goes wherever the app's logs already go. */
-function stdoutSink(event: DecisionEvent): void {
-	process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
 /**
@@ -25,7 +23,10 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (options.log !== undefined && typeof options.log !== "function") {
 		throw new Error("Invalid fairtoll options: log must be a function");
 	}
-	const steps = { classify, decide, log: options.log ?? stdoutSink };
+	const { log } = options;
+	// Observing has no other output yet, so with nothing to log there is nothing to run.
+	if (log === undefined) return (_req, _res, next) => next();
+	const steps = { classify, decide, log };
 
 	// Logging finishes in the background, so observing adds no wait before the app handles the request.
 	return (req, _res, next) => {

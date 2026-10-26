@@ -1,15 +1,10 @@
 import express from "express";
 import type { AddressInfo } from "node:net";
 import { connect } from "node:net";
-import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
 import { fairtoll } from "../../src/express/index.js";
 
-// The default sink writes to stdout, so capture it to read the lines and keep them out of the test output.
-let stdout: MockInstance<typeof process.stdout.write>;
-beforeEach(() => {
-	stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-});
 afterEach(() => {
 	vi.restoreAllMocks();
 });
@@ -71,7 +66,7 @@ function collect() {
 	return { events, log: (event: DecisionEvent) => void events.push(event) };
 }
 
-describe("fairtoll({}) changes no response", () => {
+describe("fairtoll changes no response", () => {
 	test.each([
 		["a human page view", get("/articles/1", chrome)],
 		["an AI crawler", get("/articles/2", gptBot)],
@@ -79,33 +74,38 @@ describe("fairtoll({}) changes no response", () => {
 		["a POST whose body the app parses", post('{"text":"secret-body"}')],
 	])("%s is byte for byte the same", async (_name, raw) => {
 		const without = await send(site(), raw);
-		const withFairtoll = await send(site(fairtoll({})), raw);
+		const withoutLog = await send(site(fairtoll({})), raw);
+		const withLog = await send(site(fairtoll({}, collect())), raw);
 		expect(without.toString()).toMatch(/^HTTP\/1\.1 (200|201|404) /);
-		expect(withFairtoll.toString()).toBe(without.toString());
-		expect(withFairtoll.equals(without)).toBe(true);
-	});
-
-	test("it writes an AI crawler's event to stdout as one JSON line, and writes nothing for a human", async () => {
-		await send(site(fairtoll({})), get("/articles/1", chrome));
-		await send(site(fairtoll({})), get("/articles/2?ref=feed", gptBot));
-		expect(stdout.mock.calls).toEqual([[expect.stringMatching(/^\{"fairtoll":1,.*\}\n$/)]]);
-		expect(JSON.parse(String(stdout.mock.calls[0]?.[0]))).toEqual({
-			fairtoll: 1,
-			time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
-			path: "/articles/2",
-			class: "unverifiedBot",
-			reason: "user-agent claims GPTBot",
-			action: "allow",
-		});
+		expect(withLog.toString()).toBe(without.toString());
+		expect(withLog.equals(without)).toBe(true);
+		expect(withoutLog.equals(without)).toBe(true);
 	});
 });
 
 describe("the log option", () => {
-	test("receives each event in place of stdout", async () => {
+	test("without it, nothing is logged anywhere", async () => {
+		const stdout = vi.spyOn(process.stdout, "write");
+		const stderr = vi.spyOn(process.stderr, "write");
+		const consoleLog = vi.spyOn(console, "log");
+		await send(site(fairtoll({})), get("/articles/2", gptBot));
+		expect([stdout, stderr, consoleLog].map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+	});
+
+	test("receives one event per AI request, and none for a human", async () => {
 		const { events, log } = collect();
-		await send(site(fairtoll({}, { log })), get("/articles/2", gptBot));
-		expect(events).toEqual([expect.objectContaining({ fairtoll: 1, path: "/articles/2", class: "unverifiedBot" })]);
-		expect(stdout).not.toHaveBeenCalled();
+		await send(site(fairtoll({}, { log })), get("/articles/1", chrome));
+		await send(site(fairtoll({}, { log })), get("/articles/2?ref=feed", gptBot));
+		expect(events).toEqual([
+			{
+				fairtoll: 1,
+				time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+				path: "/articles/2",
+				class: "unverifiedBot",
+				reason: "user-agent claims GPTBot",
+				action: "allow",
+			},
+		]);
 	});
 
 	test("events never contain the body, cookies, authorization, or query string", async () => {
@@ -147,7 +147,7 @@ test("if the request can't be read, the page still serves normally and the error
 	vi.spyOn(Headers.prototype, "append").mockImplementation(() => {
 		throw new TypeError("unreadable header");
 	});
-	const withFairtoll = await send(site(fairtoll({})), raw);
+	const withFairtoll = await send(site(fairtoll({}, collect())), raw);
 	expect(without.toString()).toMatch(/^HTTP\/1\.1 200 /);
 	expect(withFairtoll.equals(without)).toBe(true);
 	expect(error).toHaveBeenCalledWith(expect.stringMatching(/could not read the request/), expect.any(TypeError));
