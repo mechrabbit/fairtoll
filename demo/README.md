@@ -4,21 +4,37 @@ The demo shows what Fairtoll does to real HTTP requests, without reading its cod
 
 ```sh
 npm run demo:serve
-curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/logs/articles/42
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/default/articles/42
 ```
 
-Each endpoint shows one behaviour, so the same request sent to each shows the difference:
+Each endpoint has Fairtoll set up a different way, so the same request sent to each shows the difference. The endpoints come from a settings file, `demo/settings.json` by default:
 
-| Endpoint | What it does |
+| Endpoint | How Fairtoll is set up |
 | --- | --- |
-| `/logs/` | Fairtoll in front, with logging on |
-| `/none/` | No Fairtoll, to compare against |
+| `/default` | As installed by default, `fairtoll({})`, with nothing passed in |
+| `/logs` | With logging on, `fairtoll({}, { log })` |
+| `/none` | No Fairtoll, to compare against |
 
-Fairtoll can't block or charge yet, so there are no endpoints for those. Each will get one when Fairtoll can do it.
+Fairtoll can't block or charge yet, so there are no endpoints for those. When it can, each is a new entry in the settings file.
 
 Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
-A config file, as in `npm run demo:serve -- config.json`, is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `PORT` sets the port, and the server stops with an error if the port is in use.
+## Settings
+
+To try other setups, write a settings file and pass it, as in `npm run demo:serve -- my-settings.json`:
+
+```json
+{
+	"endpoints": {
+		"/logs": { "description": "Fairtoll with logging on", "config": {}, "log": true },
+		"/none": { "description": "No Fairtoll, to compare against" }
+	}
+}
+```
+
+An endpoint with a `config` has Fairtoll in front, and the config is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `log: true` turns on the `log` option. An endpoint without a `config` has no Fairtoll. An invalid config stops the server at startup, naming the endpoint.
+
+`PORT` sets the port, and the server stops with an error if the port is in use.
 
 ## Naming a visitor
 
@@ -39,7 +55,7 @@ To send any other user-agent, leave out the header and use `curl -A '...'`.
 
 ## Scenarios
 
-A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
+A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server, sends its requests with curl, and stops the server. To use other settings, pass the file to `node demo/serve.js` in the script. Its output is one transcript: each request's description, the server's lines, and curl's full response.
 
 ```sh
 sh demo/scenarios/endpoints.sh

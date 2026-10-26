@@ -1,0 +1,7 @@
+{
+	"endpoints": {
+		"/default": { "description": "Fairtoll as installed by default, with nothing passed in", "config": {} },
+		"/logs": { "description": "Fairtoll with logging on", "config": {}, "log": true },
+		"/none": { "description": "No Fairtoll, to compare against" }
+	}
+}
