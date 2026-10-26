@@ -1,15 +1,24 @@
 # Demo
 
-The demo shows what Fairtoll does to real HTTP requests, without reading its code or its tests. It is a small Express site with `fairtoll` in front, built from `dist/` the way a publisher installs it, that you send requests to with curl.
+The demo shows what Fairtoll does to real HTTP requests, without reading its code or its tests. It is a small Express site, built from `dist/` the way a publisher installs Fairtoll, that you send requests to with curl.
 
 ```sh
-npm run demo:serve -- --log
-curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/articles/42
+npm run demo:serve
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/logs/articles/42
 ```
 
-The site answers every request with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
+Each endpoint shows one behaviour, so the same request sent to each shows the difference:
 
-Leave out `--log` to run the default install. A config file goes after the flags, as in `npm run demo:serve -- --log config.json`, and is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `PORT` sets the port.
+| Endpoint | What it does |
+| --- | --- |
+| `/logs/` | Fairtoll in front, with logging on |
+| `/none/` | No Fairtoll, to compare against |
+
+Fairtoll can't block or charge yet, so there are no endpoints for those. Each will get one when Fairtoll can do it.
+
+Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
+
+A config file, as in `npm run demo:serve -- config.json`, is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `PORT` sets the port, and the server stops with an error if the port is in use.
 
 ## Naming a visitor
 
@@ -30,13 +39,13 @@ To send any other user-agent, leave out the header and use `curl -A '...'`.
 
 ## Scenarios
 
-A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server with its flags, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
+A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
 
 ```sh
-sh demo/scenarios/logging.sh
+sh demo/scenarios/endpoints.sh
 ```
 
-`default.sh` is the default install and `logging.sh` turns logging on. To write a new one, copy either and change the `node demo/serve.js` flags and the `send` lines.
+`endpoints.sh` sends the same visitors to each endpoint. To write a new one, copy it and change the `send` lines.
 
 ## Checking a change
 

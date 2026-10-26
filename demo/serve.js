@@ -1,6 +1,7 @@
-// Serves a small site with the built Express adapter in front, for sending real requests to with curl.
-// Each request prints a line, then any events passed to `log` and anything Fairtoll writes, as they happen.
-// Usage: npm run demo:serve -- [--log] [config.json]
+// Serves a small site for sending real requests to with curl. Each endpoint shows one behaviour: /logs/ has
+// Fairtoll in front with logging on, and /none/ has no Fairtoll, to compare against. Each request prints a
+// line, then any events passed to `log` and anything Fairtoll writes, as they happen.
+// Usage: npm run demo:serve -- [config.json]
 import express from "express";
 import { readFileSync } from "node:fs";
 import { fairtoll } from "../dist/express/index.js";
@@ -17,9 +18,7 @@ const visitors = {
 	CCBot: "CCBot/2.0 (https://commoncrawl.org/faq/)",
 };
 
-const args = process.argv.slice(2);
-const log = args.includes("--log");
-const configPath = args.find((arg) => arg !== "--log");
+const [configPath] = process.argv.slice(2);
 const config = configPath ? JSON.parse(readFileSync(configPath, "utf8")) : {};
 const port = Number(process.env.PORT ?? 3000);
 
@@ -42,10 +41,13 @@ app.use((req, res, next) => {
 	res.on("finish", () => console.log(`   response ${res.statusCode}`));
 	next();
 });
-app.use(fairtoll(config, log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {}));
-// The site answers any request with its method, path, and body, so a changed response is easy to see.
-app.use(express.text({ type: "*/*" }), (req, res) => {
-	res.send(`${req.method} ${req.path}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
+app.use("/logs", fairtoll(config, { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) }));
+// Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
+app.use(["/logs", "/none"], express.text({ type: "*/*" }), (req, res) => {
+	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
+});
+app.use((_req, res) => {
+	res.status(404).send("Send requests under /logs/ (Fairtoll with logging on) or /none/ (no Fairtoll).\n");
 });
 // Express passes a listen error, such as a port in use, to this callback rather than throwing it.
 app.listen(port, (error) => {
@@ -55,8 +57,10 @@ app.listen(port, (error) => {
 		process.exit(1);
 	}
 	console.log(`Config: ${JSON.stringify(config)}`);
-	console.log(`Logging: ${log ? "on" : "off"}`);
-	console.log(`Listening on http://localhost:${port}. Name a visitor with a Demo-Visitor header:`);
-	console.log(`   curl -H 'Demo-Visitor: GPTBot' http://localhost:${port}/articles/42`);
+	console.log(`Listening on http://localhost:${port}`);
+	console.log(`   /logs/  Fairtoll with logging on`);
+	console.log(`   /none/  no Fairtoll`);
+	console.log(`Name a visitor with a Demo-Visitor header:`);
+	console.log(`   curl -H 'Demo-Visitor: GPTBot' http://localhost:${port}/logs/articles/42`);
 	console.log(`Known visitors: ${Object.keys(visitors).join(", ")}\n`);
 });
