@@ -1,21 +1,16 @@
 import express from "express";
-import { mkdtemp, readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { connect } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from "vitest";
+import type { DecisionEvent } from "../../src/core/index.js";
 import { fairtoll } from "../../src/express/index.js";
 
-let dir: string;
-let originalCwd: string;
-beforeEach(async () => {
-	dir = await mkdtemp(join(tmpdir(), "fairtoll-"));
-	originalCwd = process.cwd();
-	process.chdir(dir);
+// The default sink writes to stdout, so capture it to read the lines and keep them out of the test output.
+let stdout: MockInstance<typeof process.stdout.write>;
+beforeEach(() => {
+	stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 });
 afterEach(() => {
-	process.chdir(originalCwd);
 	vi.restoreAllMocks();
 });
 
@@ -70,17 +65,10 @@ const post = (body: string) =>
 const gptBot = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot";
 const chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
-/** The events in the log, once the background write has finished. */
-async function events(path: string) {
-	const text = await vi.waitFor(async () => {
-		const text = await readFile(path, "utf8");
-		if (!text.endsWith("\n")) throw new Error("the write hasn't finished");
-		return text;
-	});
-	return text
-		.trimEnd()
-		.split("\n")
-		.map((line) => JSON.parse(line));
+/** A log option that collects the events it receives. */
+function collect() {
+	const events: DecisionEvent[] = [];
+	return { events, log: (event: DecisionEvent) => void events.push(event) };
 }
 
 describe("fairtoll({}) changes no response", () => {
@@ -97,35 +85,38 @@ describe("fairtoll({}) changes no response", () => {
 		expect(withFairtoll.equals(without)).toBe(true);
 	});
 
-	test("it logs to fairtoll-events.jsonl in the working directory", async () => {
+	test("it writes an AI crawler's event to stdout as one JSON line, and writes nothing for a human", async () => {
 		await send(site(fairtoll({})), get("/articles/1", chrome));
-		expect(await events(join(dir, "fairtoll-events.jsonl"))).toHaveLength(1);
+		await send(site(fairtoll({})), get("/articles/2?ref=feed", gptBot));
+		expect(stdout.mock.calls).toEqual([[expect.stringMatching(/^\{"fairtoll":1,.*\}\n$/)]]);
+		expect(JSON.parse(String(stdout.mock.calls[0]?.[0]))).toEqual({
+			fairtoll: 1,
+			time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+			path: "/articles/2",
+			class: "unverifiedBot",
+			reason: "user-agent claims GPTBot",
+			action: "allow",
+		});
 	});
 });
 
-describe("the event log", () => {
-	test("an AI crawler writes one line with the version, time, path, class, reason, and action", async () => {
-		const log = join(dir, "events.jsonl");
-		await send(site(fairtoll({ eventLog: log })), get("/articles/2?ref=feed", gptBot));
-		expect(await events(log)).toEqual([
-			{ v: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/2", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
-		]);
+describe("the log option", () => {
+	test("receives each event in place of stdout", async () => {
+		const { events, log } = collect();
+		await send(site(fairtoll({}, { log })), get("/articles/2", gptBot));
+		expect(events).toEqual([expect.objectContaining({ fairtoll: 1, path: "/articles/2", class: "unverifiedBot" })]);
+		expect(stdout).not.toHaveBeenCalled();
 	});
 
-	test("a request with no bot signals is logged as human the same way", async () => {
-		const log = join(dir, "events.jsonl");
-		await send(site(fairtoll({ eventLog: log })), get("/articles/1", chrome));
-		expect(await events(log)).toEqual([
-			{ v: 1, time: expect.any(String), path: "/articles/1", class: "human", reason: "no bot signals", action: "allow" },
-		]);
+	test("events never contain the body, cookies, authorization, or query string", async () => {
+		const { events, log } = collect();
+		await send(site(fairtoll({}, { log })), post('{"text":"secret-body"}'));
+		expect(events).toEqual([expect.objectContaining({ path: "/comments" })]);
+		expect(JSON.stringify(events)).not.toMatch(/secret/);
 	});
 
-	test("never contains the body, cookies, authorization, or query string", async () => {
-		const log = join(dir, "events.jsonl");
-		await send(site(fairtoll({ eventLog: log })), post('{"text":"secret-body"}'));
-		const [event] = await events(log);
-		expect(event.path).toBe("/comments");
-		expect(JSON.stringify(event)).not.toMatch(/secret/);
+	test("a log that isn't a function throws at startup", () => {
+		expect(() => fairtoll({}, { log: {} as never })).toThrow(/log must be a function/);
 	});
 });
 
@@ -140,12 +131,12 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 		["an absolute-form target with an invalid port", raw("GET http://example.com:99999/articles/1 HTTP/1.1", "example.com"), "/articles/1"],
 		["an absolute-form target whose path starts with //", raw("GET http://example.com//articles/1 HTTP/1.1", "example.com"), "//articles/1"],
 	])("%s", async (_name, request, path) => {
-		const log = join(dir, "events.jsonl");
+		const { events, log } = collect();
 		const without = await send(site(), request);
-		const withFairtoll = await send(site(fairtoll({ eventLog: log })), request);
+		const withFairtoll = await send(site(fairtoll({}, { log })), request);
 		expect(without.toString()).toMatch(/^HTTP\/1\.1 \d{3} /);
 		expect(withFairtoll.equals(without)).toBe(true);
-		expect(await events(log)).toEqual([expect.objectContaining({ path, class: "unverifiedBot" })]);
+		expect(events).toEqual([expect.objectContaining({ path, class: "unverifiedBot" })]);
 	});
 });
 
@@ -162,15 +153,18 @@ test("if the request can't be read, the page still serves normally and the error
 	expect(error).toHaveBeenCalledWith(expect.stringMatching(/could not read the request/), expect.any(TypeError));
 });
 
-test("if the sink throws, the page still serves normally and the error is reported", async () => {
+test("if the log throws, the page still serves normally and the error is reported", async () => {
 	const error = vi.spyOn(console, "error").mockImplementation(() => {});
 	const raw = get("/articles/1", gptBot);
 	const without = await send(site(), raw);
-	const withFairtoll = await send(site(fairtoll({ eventLog: join(dir, "missing-dir", "events.jsonl") })), raw);
+	const log = () => {
+		throw new Error("logger down");
+	};
+	const withFairtoll = await send(site(fairtoll({}, { log })), raw);
 	expect(withFairtoll.equals(without)).toBe(true);
 	await expect.poll(() => error.mock.calls.length).toBe(1);
 });
 
 test("an invalid config throws at startup, naming the field", () => {
-	expect(() => fairtoll({ evntLog: "x" })).toThrow(/evntLog/);
+	expect(() => fairtoll({ eventLog: "x.jsonl" })).toThrow(/eventLog/);
 });

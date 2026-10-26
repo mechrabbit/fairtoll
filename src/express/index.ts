@@ -1,20 +1,31 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
-import { classify, decide, observe, parseConfig } from "../core/index.js";
-import { fileSink } from "../node/file-sink.js";
+import { classify, decide, observe, parseConfig, type DecisionEvent, type EventSink } from "../core/index.js";
 
-const defaultEventLog = "fairtoll-events.jsonl";
 const origin = "http://localhost";
+
+export interface Options {
+	/** Receives each event instead of stdout, such as to send it to the app's own logger. */
+	readonly log?: EventSink;
+}
+
+/** Writes each event to stdout as one JSON line, so it goes wherever the app's logs already go. */
+function stdoutSink(event: DecisionEvent): void {
+	process.stdout.write(`${JSON.stringify(event)}\n`);
+}
 
 /**
  * Express middleware that observes every request and passes it on unchanged.
- * An invalid config throws here, so a mistake shows at startup and not on a request.
+ * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
-export function fairtoll(input: unknown): RequestHandler {
+export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
 	const result = parseConfig(input);
 	if (!result.ok) {
 		throw new Error(`Invalid fairtoll config:\n${result.errors.map((e) => `  ${e.field} ${e.message}`).join("\n")}`);
 	}
-	const steps = { classify, decide, log: fileSink(result.config.eventLog ?? defaultEventLog) };
+	if (options.log !== undefined && typeof options.log !== "function") {
+		throw new Error("Invalid fairtoll options: log must be a function");
+	}
+	const steps = { classify, decide, log: options.log ?? stdoutSink };
 
 	// Logging finishes in the background, so observing adds no wait before the app handles the request.
 	return (req, _res, next) => {

@@ -37,8 +37,14 @@ describe("observe", () => {
 		const { events, steps: s } = steps();
 		await observe(request(gptBot), s);
 		expect(events).toEqual([
-			{ v: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/1", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
+			{ fairtoll: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/1", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
 		]);
+	});
+
+	test("a human request isn't logged", async () => {
+		const { events, steps: s } = steps();
+		await observe(request(chrome), s);
+		expect(events).toEqual([]);
 	});
 
 	const boom = () => {

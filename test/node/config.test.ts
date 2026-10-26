@@ -6,21 +6,15 @@ describe("parseConfig", () => {
 		expect(parseConfig({})).toEqual({ ok: true, config: {} });
 	});
 
-	test("eventLog sets the event log file", () => {
-		expect(parseConfig({ eventLog: "fairtoll.jsonl" })).toEqual({ ok: true, config: { eventLog: "fairtoll.jsonl" } });
-	});
-
 	test.each([
 		["not an object", "{}", ["config"]],
 		["null", null, ["config"]],
 		["an array", [], ["config"]],
-		["a Promise, such as a config loaded without await", Promise.resolve({ eventLog: "x.jsonl" }), ["config"]],
-		["a Map", new Map([["eventLog", "x.jsonl"]]), ["config"]],
+		["a Promise, such as a config loaded without await", Promise.resolve({ rules: [] }), ["config"]],
+		["a Map", new Map([["rules", []]]), ["config"]],
 		["an object that inherits its fields", Object.create({ privateKey: "0xabc" }) as object, ["config"]],
-		["a misspelled field", { eventlog: "x.jsonl" }, ["eventlog"]],
+		["the eventLog field that has been removed", { eventLog: "x.jsonl" }, ["eventLog"]],
 		["a private key", { privateKey: "0xabc" }, ["privateKey"]],
-		["an eventLog that is not a string", { eventLog: 1 }, ["eventLog"]],
-		["an empty eventLog", { eventLog: "" }, ["eventLog"]],
 	])("rejects %s, naming the field", (_, input, fields) => {
 		const result = parseConfig(input);
 		expect(result.ok).toBe(false);
