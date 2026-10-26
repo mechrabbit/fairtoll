@@ -21,11 +21,29 @@ It ends with any files written to the working directory, and says if `fairtoll()
 {
 	"config": {},
 	"log": true,
-	"requests": [{ "name": "OpenAI's crawler", "method": "GET", "path": "/articles/42", "headers": { "user-agent": "GPTBot/1.2" } }]
+	"requests": [
+		{ "as": "GPTBot", "path": "/articles/42" },
+		{ "as": "Chrome", "method": "POST", "path": "/comments", "body": "hello" }
+	]
 }
 ```
 
-`config` is passed to `fairtoll()` unchanged, so a scenario can use a new config field without changing the runner. `log: true` turns on the `log` option. In a request, only `path` is required. `body` is a string.
+`config` is passed to `fairtoll()` unchanged, so a scenario can use a new config field without changing the runner. `log: true` turns on the `log` option.
+
+In a request, only `path` is required. `as` sends the request as a known visitor, with that visitor's real user-agent string. Capitalisation doesn't matter. The known visitors are:
+
+| `as` | Who it is |
+| --- | --- |
+| `Chrome` | A reader in desktop Chrome |
+| `Safari on iPhone` | A reader on a phone |
+| `Googlebot` | Google's search crawler, which is not an AI crawler |
+| `GPTBot` | OpenAI's training crawler |
+| `ChatGPT-User` | ChatGPT fetching a page for a user |
+| `ClaudeBot` | Anthropic's crawler |
+| `PerplexityBot` | Perplexity's crawler |
+| `CCBot` | Common Crawl, whose data trains many models |
+
+To send something else, leave out `as` and set the header yourself, as in `"headers": { "user-agent": "..." }`. A request can also have a `name` for the transcript, a `method`, other `headers`, and a `body` string.
 
 ## Checking a change
 
