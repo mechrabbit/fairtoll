@@ -48,3 +48,16 @@ To send something else, leave out `as` and set the header yourself, as in `"head
 ## Checking a change
 
 The transcript names the commit it ran on, and is the same on every run of the same code. To check a change, write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself and compare with `diff`. A change to `demo/run.js` changes what the transcript can show, so review it as closely as the change itself.
+
+## Trying requests by hand
+
+To poke at Fairtoll with curl instead of a scenario, start the same site as a server:
+
+```sh
+npm run demo:serve -- --log
+curl -A 'GPTBot/1.2' http://localhost:3000/articles/42
+```
+
+Each request prints a line, then the response status, any events passed to `log`, and anything Fairtoll writes, as they happen. At startup it prints a curl command for each known visitor, with its full user-agent string. Leave out `--log` to run the default install. A config file goes after the flags, as in `npm run demo:serve -- --log config.json`, and `PORT` sets the port.
+
+This is for exploring. Nothing is saved, and responses aren't compared with the site without Fairtoll, so use a scenario for anything you hand over or check later.

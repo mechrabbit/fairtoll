@@ -3,12 +3,12 @@
 // stderr, or the working directory. The transcript is the same on every run of the same code, so two runs,
 // or two branches, can be compared with diff.
 // Usage: npm run demo -- demo/scenarios/<name>.json
-import express from "express";
 import { execSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fairtoll } from "../dist/express/index.js";
+import { site, visitors } from "./site.js";
 
 const [scenarioPath] = process.argv.slice(2);
 if (!scenarioPath) {
@@ -19,17 +19,6 @@ if (!scenarioPath) {
 // fairtoll() unchanged, so a scenario can use config fields this runner has never heard of.
 const scenario = JSON.parse(readFileSync(scenarioPath, "utf8"));
 
-/** Visitors a request can name with `as`, so a scenario needn't spell out their user-agent strings. */
-const visitors = {
-	Chrome: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-	"Safari on iPhone": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-	Googlebot: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-	GPTBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
-	"ChatGPT-User": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot",
-	ClaudeBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
-	PerplexityBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
-	CCBot: "CCBot/2.0 (https://commoncrawl.org/faq/)",
-};
 for (const request of scenario.requests) {
 	if (request.as === undefined) continue;
 	// Any capitalisation works, so "gptbot" finds GPTBot.
@@ -55,21 +44,6 @@ function codeVersion() {
 	} catch {
 		return "unknown commit";
 	}
-}
-
-/** A site that answers any request with its method, path, and body, so a changed response is easy to see. */
-function site(middleware) {
-	const app = express();
-	app.use((_req, res, next) => {
-		// The Date header changes every second, so leave it out to keep the transcript the same on every run.
-		res.sendDate = false;
-		next();
-	});
-	if (middleware) app.use(middleware);
-	app.use(express.text({ type: "*/*" }), (req, res) => {
-		res.send(`${req.method} ${req.path}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}`);
-	});
-	return app;
 }
 
 const events = [];
