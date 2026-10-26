@@ -1,9 +1,0 @@
-{
-	"config": {},
-	"log": true,
-	"requests": [
-		{ "as": "Chrome", "path": "/articles/42?ref=home" },
-		{ "as": "GPTBot", "path": "/articles/42?ref=home" },
-		{ "as": "ClaudeBot", "name": "ClaudeBot posting a comment", "method": "POST", "path": "/comments", "headers": { "content-type": "application/json" }, "body": "{\"text\":\"hello\"}" }
-	]
-}

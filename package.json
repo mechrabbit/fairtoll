@@ -37,7 +37,6 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint .",
 		"test": "vitest run",
-		"demo": "npm run build --silent && node demo/run.js",
 		"demo:serve": "npm run build --silent && node demo/serve.js"
 	},
 	"devDependencies": {

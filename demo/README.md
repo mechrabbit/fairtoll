@@ -1,38 +1,21 @@
 # Demo
 
-The demo shows what Fairtoll does to real HTTP requests, without reading its code or its tests. You write a scenario, run it, and read the transcript.
+The demo shows what Fairtoll does to real HTTP requests, without reading its code or its tests. It is a small Express site with `fairtoll` in front, built from `dist/` the way a publisher installs it, that you send requests to with curl.
 
 ```sh
-npm run demo -- demo/scenarios/logging.json
+npm run demo:serve -- --log
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/articles/42
 ```
 
-This builds the package, serves a small Express site with `fairtoll` in front of it, and sends the scenario's requests. The site answers every request with its method, path, and body. The transcript shows, for each request:
+The site answers every request with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
-- the request and the full response,
-- whether the response is the same as the same site gives without Fairtoll,
-- the events passed to `log`,
-- anything written to stdout or stderr.
+Leave out `--log` to run the default install. A config file goes after the flags, as in `npm run demo:serve -- --log config.json`, and is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `PORT` sets the port.
 
-It ends with any files written to the working directory, and says if `fairtoll()` threw at startup.
+## Naming a visitor
 
-## Writing a scenario
+A `Demo-Visitor` header sends the request as a known visitor, with that visitor's real user-agent string. The server swaps it in and removes the header before Fairtoll sees the request. Capitalisation doesn't matter, and an unknown name gets a 400 that lists the known ones.
 
-```json
-{
-	"config": {},
-	"log": true,
-	"requests": [
-		{ "as": "GPTBot", "path": "/articles/42" },
-		{ "as": "Chrome", "method": "POST", "path": "/comments", "body": "hello" }
-	]
-}
-```
-
-`config` is passed to `fairtoll()` unchanged, so a scenario can use a new config field without changing the runner. `log: true` turns on the `log` option.
-
-In a request, only `path` is required. `as` sends the request as a known visitor, with that visitor's real user-agent string. Capitalisation doesn't matter. The known visitors are:
-
-| `as` | Who it is |
+| `Demo-Visitor` | Who it is |
 | --- | --- |
 | `Chrome` | A reader in desktop Chrome |
 | `Safari on iPhone` | A reader on a phone |
@@ -43,21 +26,18 @@ In a request, only `path` is required. `as` sends the request as a known visitor
 | `PerplexityBot` | Perplexity's crawler |
 | `CCBot` | Common Crawl, whose data trains many models |
 
-To send something else, leave out `as` and set the header yourself, as in `"headers": { "user-agent": "..." }`. A request can also have a `name` for the transcript, a `method`, other `headers`, and a `body` string.
+To send any other user-agent, leave out the header and use `curl -A '...'`.
+
+## Scenarios
+
+A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server with its flags, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
+
+```sh
+sh demo/scenarios/logging.sh
+```
+
+`default.sh` is the default install and `logging.sh` turns logging on. To write a new one, copy either and change the `node demo/serve.js` flags and the `send` lines.
 
 ## Checking a change
 
-The transcript names the commit it ran on, and is the same on every run of the same code. To check a change, write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself and compare with `diff`. A change to `demo/run.js` changes what the transcript can show, so review it as closely as the change itself.
-
-## Trying requests by hand
-
-To poke at Fairtoll with curl instead of a scenario, start the same site as a server:
-
-```sh
-npm run demo:serve -- --log
-curl -A 'GPTBot/1.2' http://localhost:3000/articles/42
-```
-
-Each request prints a line, then the response status, any events passed to `log`, and anything Fairtoll writes, as they happen. At startup it prints a curl command for each known visitor, with its full user-agent string. Leave out `--log` to run the default install. A config file goes after the flags, as in `npm run demo:serve -- --log config.json`, and `PORT` sets the port.
-
-This is for exploring. Nothing is saved, and responses aren't compared with the site without Fairtoll, so use a scenario for anything you hand over or check later.
+Write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself. A change to `demo/serve.js` or to a scenario changes what the transcript can show, so review it as closely as the change itself.
