@@ -36,7 +36,8 @@
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint .",
-		"test": "vitest run"
+		"test": "vitest run",
+		"demo": "npm run build && node demo/index.js"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "1.4.6",
