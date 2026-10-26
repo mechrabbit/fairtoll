@@ -3,31 +3,37 @@
 The demo shows what Fairtoll does to real HTTP requests, without reading its code or its tests. It is a small Express site, built from `dist/` the way a publisher installs Fairtoll, that you send requests to with curl.
 
 ```sh
-npm run demo:serve -- demo/settings/logging.json
-curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/articles/42
+npm run demo:serve
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/monitor/articles/42
 ```
 
-The site answers any request with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
+It has one endpoint for each way a publisher can use Fairtoll, so the same request sent to each shows the difference:
+
+| Endpoint | How the publisher uses Fairtoll |
+| --- | --- |
+| `/open` | Not at all: no Fairtoll |
+| `/monitor` | Fairtoll classifies each request and lets it through |
+
+Blocking and charging get their own endpoints, `/blocked` and `/charged`, once Fairtoll can do them.
+
+Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. Any other path gets a 404 listing the endpoints. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
 ## Settings
 
-Each run has one Fairtoll setup in front of the whole site, as a publisher would install it. A settings file picks it, and `demo/settings/default.json` is used when none is given:
+A settings file holds the publisher's other setup, which applies to every endpoint that has Fairtoll. `demo/settings/default.json` is used when none is given:
 
-| Settings file | How Fairtoll is set up |
+| Settings file | Setup |
 | --- | --- |
 | `default.json` | As installed by default, `fairtoll({})`, with nothing passed in |
 | `logging.json` | With logging on, `fairtoll({}, { log })` |
-| `none.json` | No Fairtoll, to compare against |
 
-To compare setups, send the same requests to a run with each. Fairtoll can't block or charge yet, so there are no settings for those. When it can, each is a new settings file.
-
-A settings file looks like this:
+To compare settings, send the same requests to a run with each, as in `npm run demo:serve -- demo/settings/logging.json`. A settings file looks like this:
 
 ```json
 { "description": "Fairtoll with logging on", "config": {}, "log": true }
 ```
 
-With a `config`, Fairtoll is in front of the site, and the config is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `log: true` turns on the `log` option. Without a `config`, there is no Fairtoll. An invalid config stops the server at startup.
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `log: true` turns on the `log` option. An invalid config stops the server at startup.
 
 `PORT` sets the port, and the server stops with an error if the port is in use.
 
@@ -56,7 +62,7 @@ A scenario is a shell script in `demo/scenarios/` that builds the package, start
 sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting. Run it once per settings file to compare them. To write a new scenario, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 

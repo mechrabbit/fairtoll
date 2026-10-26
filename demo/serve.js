@@ -1,7 +1,8 @@
-// Serves a small site for sending real requests to with curl. A settings file says how Fairtoll is set up
-// in front of the whole site, as a publisher would install it, so running the same requests against two
-// settings files shows the difference. Each request prints a line, then any events passed to `log` and
-// anything Fairtoll writes, as they happen.
+// Serves a small site for sending real requests to with curl. It has one endpoint for each way a publisher
+// can use Fairtoll, so the same request sent to each shows the difference: /open has no Fairtoll, and
+// /monitor has Fairtoll classifying requests and letting them through. A settings file holds the
+// publisher's other setup, such as logging, for the endpoints that have Fairtoll. Each request prints a
+// line, then any events passed to `log` and anything Fairtoll writes, as they happen.
 // Usage: npm run demo:serve -- [settings.json], which defaults to demo/settings/default.json
 import express from "express";
 import { readFileSync } from "node:fs";
@@ -20,10 +21,10 @@ const visitors = {
 	CCBot: "CCBot/2.0 (https://commoncrawl.org/faq/)",
 };
 
-// Settings are { description, config?, log? }. With a `config`, Fairtoll is in front of the site, set up
-// with that config unchanged, and `log: true` turns on its `log` option. Without one, there is no Fairtoll.
+// Settings are { description, config?, log? }. `config` is passed to fairtoll() unchanged, and defaults to
+// {}. `log: true` turns on its `log` option.
 const [settingsPath = fileURLToPath(new URL("settings/default.json", import.meta.url))] = process.argv.slice(2);
-const { description, config, log } = JSON.parse(readFileSync(settingsPath, "utf8"));
+const { description, config = {}, log } = JSON.parse(readFileSync(settingsPath, "utf8"));
 const port = Number(process.env.PORT ?? 3000);
 
 const app = express();
@@ -45,17 +46,19 @@ app.use((req, res, next) => {
 	res.on("finish", () => console.log(`   response ${res.statusCode}`));
 	next();
 });
-if (config !== undefined) {
-	try {
-		app.use(fairtoll(config, log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {}));
-	} catch (error) {
-		console.error(`Could not set up Fairtoll: ${error.message}`);
-		process.exit(1);
-	}
+try {
+	app.use("/monitor", fairtoll(config, log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {}));
+} catch (error) {
+	console.error(`Could not set up Fairtoll: ${error.message}`);
+	process.exit(1);
 }
-// The site answers any request with its method, path, and body, so a changed response is easy to see.
-app.use(express.text({ type: "*/*" }), (req, res) => {
+const endpoints = "   /open     no Fairtoll\n   /monitor  Fairtoll classifies each request and lets it through";
+// Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
+app.use(["/open", "/monitor"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
+});
+app.use((_req, res) => {
+	res.status(404).send(`Send requests under one of the endpoints:\n${endpoints}\n`);
 });
 // Express passes a listen error, such as a port in use, to this callback rather than throwing it.
 app.listen(port, (error) => {
@@ -65,8 +68,10 @@ app.listen(port, (error) => {
 		process.exit(1);
 	}
 	console.log(`Settings: ${settingsPath}`);
-	console.log(`   ${description}: ${config === undefined ? "no fairtoll" : `fairtoll(${JSON.stringify(config)}${log ? ", { log }" : ""})`}`);
-	console.log(`Listening on http://localhost:${port}. Name a visitor with a Demo-Visitor header:`);
-	console.log(`   curl -H 'Demo-Visitor: GPTBot' http://localhost:${port}/articles/42`);
+	console.log(`   ${description}: /monitor runs fairtoll(${JSON.stringify(config)}${log ? ", { log }" : ""})`);
+	console.log(`Listening on http://localhost:${port}`);
+	console.log(endpoints);
+	console.log("Name a visitor with a Demo-Visitor header:");
+	console.log(`   curl -H 'Demo-Visitor: GPTBot' http://localhost:${port}/monitor/articles/42`);
 	console.log(`Known visitors: ${Object.keys(visitors).join(", ")}\n`);
 });
