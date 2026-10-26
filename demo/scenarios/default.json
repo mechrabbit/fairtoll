@@ -1,0 +1,8 @@
+{
+	"config": {},
+	"requests": [
+		{ "name": "a reader in Chrome", "path": "/articles/42?ref=home", "headers": { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" } },
+		{ "name": "OpenAI's crawler", "path": "/articles/42?ref=home", "headers": { "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot" } },
+		{ "name": "Anthropic's crawler posting a comment", "method": "POST", "path": "/comments", "headers": { "user-agent": "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)", "content-type": "application/json" }, "body": "{\"text\":\"hello\"}" }
+	]
+}
