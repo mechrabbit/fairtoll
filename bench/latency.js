@@ -22,15 +22,17 @@ if (process.argv[2] === "serve") {
 	const server = app.listen(0, () => process.send(server.address().port));
 } else {
 	const check = process.argv.includes("--check");
-	// Losing the default setup's shortcut adds about 0.02 ms, and a busy machine moves the difference by up
-	// to about 0.009 ms, so the limit sits between them. A failed run is retried, so one unlucky run passes.
-	const limit = 0.01;
+	// The limit is a share of the request without Fairtoll, so it scales with the machine's speed. Logging by
+	// default would add 15 to 20%, and a busy machine moves the difference by up to about 6%, so the limit sits
+	// between them. A failed run is retried, so one unlucky run passes.
+	const share = 0.1;
 	const attempts = check ? 3 : 1;
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		const medians = await measure(check ? 5000 : 20000);
 		const extra = medians.default - medians["no Fairtoll"];
+		const limit = medians["no Fairtoll"] * share;
 		if (!check || extra <= limit) process.exit(0);
-		console.log(`The default setup added ${extra.toFixed(3)} ms, more than the ${limit} ms limit (attempt ${attempt} of ${attempts})\n`);
+		console.log(`The default setup added ${extra.toFixed(3)} ms, more than ${share * 100}% of the request without Fairtoll, ${limit.toFixed(3)} ms (attempt ${attempt} of ${attempts})\n`);
 	}
 	process.exit(1);
 }
