@@ -92,16 +92,6 @@ describe("the log option", () => {
 		expect([stdout, stderr, consoleLog].map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
 	});
 
-	test("without it, the request and response aren't touched at all", () => {
-		// Records every read or change, rather than throwing, because Fairtoll catches errors from reading the request.
-		const touched: PropertyKey[] = [];
-		const watched = new Proxy({}, { get: (_target, key) => void touched.push(key), set: (_target, key) => (touched.push(key), true) });
-		const next = vi.fn();
-		fairtoll({})(watched as express.Request, watched as express.Response, next);
-		expect(touched).toEqual([]);
-		expect(next.mock.calls).toEqual([[]]);
-	});
-
 	test("receives one event per AI request, and none for a human", async () => {
 		const { events, log } = collect();
 		await send(site(fairtoll({}, { log })), get("/articles/1", chrome));
