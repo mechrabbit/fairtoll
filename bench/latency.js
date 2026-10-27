@@ -1,8 +1,8 @@
 // Measures how much time Fairtoll adds to a request, by sending the same request to an endpoint without
 // Fairtoll and to one for each setup, in a shuffled order each round, and comparing the medians. The server
-// runs in its own process so the client doesn't slow it, and both sides of each comparison run at the same
-// time on the same machine, so a slower machine slows both.
-// Usage: npm run bench, or npm run bench -- --check to fail if the default setup costs any measurable time.
+// runs in its own process so the client doesn't slow it, and both sides of each comparison take turns in the
+// same run on the same machine, so a slower machine slows both.
+// Usage: npm run bench, or npm run bench -- --check to fail if the default setup adds more than the limit below.
 import express from "express";
 import { fork } from "node:child_process";
 import http from "node:http";
