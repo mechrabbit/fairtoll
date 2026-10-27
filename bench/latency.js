@@ -9,6 +9,13 @@ import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { fairtoll } from "../dist/express/index.js";
 
+// --check fails if the default setup adds more than the lower of these shares, both measured in the same run so
+// they scale with the machine's speed. Logging by default would add 12 to 20% of the request without Fairtoll.
+// The default setup measures up to about 6% of that request, and up to about 17% of what logging adds, from
+// noise alone, even on a busy machine. A failed run is retried, so one unlucky run passes.
+const maxShareOfRequest = 0.1;
+const maxShareOfLogging = 0.25;
+
 const setups = {
 	"no Fairtoll": [],
 	default: [fairtoll({})],
@@ -22,14 +29,11 @@ if (process.argv[2] === "serve") {
 	const server = app.listen(0, () => process.send(server.address().port));
 } else {
 	const check = process.argv.includes("--check");
-	// The limit scales with the machine's speed: the lower of 10% of the request without Fairtoll and half of
-	// what logging adds in the same run. Logging by default would add 12 to 20%, and a busy machine moves the
-	// difference by up to about 6%. A failed run is retried, so one unlucky run passes.
 	const attempts = check ? 3 : 1;
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		const medians = await measure(check ? 5000 : 20000);
 		const extra = medians.default - medians["no Fairtoll"];
-		const limit = Math.min(medians["no Fairtoll"] * 0.1, (medians["logging on"] - medians["no Fairtoll"]) / 2);
+		const limit = Math.min(medians["no Fairtoll"] * maxShareOfRequest, (medians["logging on"] - medians["no Fairtoll"]) * maxShareOfLogging);
 		if (!check || extra <= limit) process.exit(0);
 		const percent = ((extra / medians["no Fairtoll"]) * 100).toFixed(1);
 		console.log(`The default setup added ${extra.toFixed(3)} ms, ${percent}% of the request without Fairtoll (attempt ${attempt} of ${attempts})\n`);
