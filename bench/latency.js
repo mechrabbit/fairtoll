@@ -11,7 +11,7 @@ import { fairtoll } from "../dist/express/index.js";
 
 // --check fails if the default setup adds more than the lower of these shares, both measured in the same run so
 // they scale with the machine's speed. Logging by default would add 12 to 20% of the request without Fairtoll.
-// The default setup measures up to about 6% of that request, and up to about 17% of what logging adds, from
+// The default setup measures up to about 2.5% of that request, and up to about 17% of what logging adds, from
 // noise alone, even on a busy machine. A failed run is retried, so one unlucky run passes.
 const maxShareOfRequest = 0.1;
 const maxShareOfLogging = 0.25;
