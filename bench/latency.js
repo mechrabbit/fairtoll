@@ -14,7 +14,7 @@ const setups = {
 	default: [fairtoll({})],
 	"logging on": [fairtoll({}, { log: () => {} })],
 };
-const paths = Object.keys(setups).map((name, i) => `/${i}/articles/42?ref=feed`);
+const paths = Object.keys(setups).map((_, i) => `/${i}/articles/42?ref=feed`);
 
 if (process.argv[2] === "serve") {
 	const app = express();
@@ -22,17 +22,17 @@ if (process.argv[2] === "serve") {
 	const server = app.listen(0, () => process.send(server.address().port));
 } else {
 	const check = process.argv.includes("--check");
-	// The limit is a share of the request without Fairtoll, so it scales with the machine's speed. Logging by
-	// default would add 15 to 20%, and a busy machine moves the difference by up to about 6%, so the limit sits
-	// between them. A failed run is retried, so one unlucky run passes.
-	const share = 0.1;
+	// The limit scales with the machine's speed: the lower of 10% of the request without Fairtoll and half of
+	// what logging adds in the same run. Logging by default would add 12 to 20%, and a busy machine moves the
+	// difference by up to about 6%. A failed run is retried, so one unlucky run passes.
 	const attempts = check ? 3 : 1;
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		const medians = await measure(check ? 5000 : 20000);
 		const extra = medians.default - medians["no Fairtoll"];
-		const limit = medians["no Fairtoll"] * share;
+		const limit = Math.min(medians["no Fairtoll"] * 0.1, (medians["logging on"] - medians["no Fairtoll"]) / 2);
 		if (!check || extra <= limit) process.exit(0);
-		console.log(`The default setup added ${extra.toFixed(3)} ms, more than ${share * 100}% of the request without Fairtoll, ${limit.toFixed(3)} ms (attempt ${attempt} of ${attempts})\n`);
+		const percent = ((extra / medians["no Fairtoll"]) * 100).toFixed(1);
+		console.log(`The default setup added ${extra.toFixed(3)} ms, ${percent}% of the request without Fairtoll (attempt ${attempt} of ${attempts})\n`);
 	}
 	process.exit(1);
 }
