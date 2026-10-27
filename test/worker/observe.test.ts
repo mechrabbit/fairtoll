@@ -8,5 +8,5 @@ test("observe runs in workerd", async () => {
 		decide,
 		log: (event) => void events.push(event),
 	});
-	expect(events).toMatchObject([{ v: 1, path: "/", class: "unverifiedBot", action: "allow" }]);
+	expect(events).toMatchObject([{ fairtoll: 1, path: "/", class: "unverifiedBot", action: "allow" }]);
 });
