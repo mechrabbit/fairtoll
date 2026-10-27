@@ -37,7 +37,8 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint .",
 		"test": "vitest run",
-		"demo:serve": "npm run build --silent && node demo/serve.js"
+		"demo:serve": "npm run build --silent && node demo/serve.js",
+		"bench": "npm run build --silent && node bench/latency.js"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "1.4.6",
