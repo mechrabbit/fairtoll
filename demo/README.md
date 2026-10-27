@@ -4,21 +4,38 @@ The demo shows what Fairtoll does to real HTTP requests, without reading its cod
 
 ```sh
 npm run demo:serve
-curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/logs/articles/42
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/monitor/articles/42
 ```
 
-Each endpoint shows one behaviour, so the same request sent to each shows the difference:
+It has one endpoint for each way a publisher can use Fairtoll, so the same request sent to each shows the difference:
 
-| Endpoint | What it does |
+| Endpoint | How the publisher uses Fairtoll |
 | --- | --- |
-| `/logs/` | Fairtoll in front, with logging on |
-| `/none/` | No Fairtoll, to compare against |
+| `/open` | Not at all: no Fairtoll |
+| `/monitor` | Fairtoll classifies each request and lets it through |
 
-Fairtoll can't block or charge yet, so there are no endpoints for those. Each will get one when Fairtoll can do it.
+Blocking and charging get their own endpoints, `/blocked` and `/charged`, once Fairtoll can do them.
 
-Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
+Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. Any other path gets a 404 listing the endpoints. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
-A config file, as in `npm run demo:serve -- config.json`, is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo. `PORT` sets the port, and the server stops with an error if the port is in use.
+## Settings
+
+A settings file holds the publisher's other setup, which applies to every endpoint that has Fairtoll. `demo/settings/default.json` is used when none is given:
+
+| Settings file | Setup |
+| --- | --- |
+| `default.json` | As installed by default, `fairtoll({})`, with nothing passed in |
+| `logging.json` | With logging on, `fairtoll({}, { log })` |
+
+To compare settings, send the same requests to a run with each, as in `npm run demo:serve -- demo/settings/logging.json`. A settings file looks like this:
+
+```json
+{ "description": "Fairtoll with logging on", "config": {}, "log": true }
+```
+
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `log: true` turns on the `log` option. An invalid config stops the server at startup.
+
+`PORT` sets the port, and the server stops with an error if the port is in use.
 
 ## Naming a visitor
 
@@ -39,14 +56,14 @@ To send any other user-agent, leave out the header and use `curl -A '...'`.
 
 ## Scenarios
 
-A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
+A scenario is a shell script in `demo/scenarios/` that builds the package, starts the server with the settings file it's given, sends its requests with curl, and stops the server. Its output is one transcript: each request's description, the server's lines, and curl's full response.
 
 ```sh
-sh demo/scenarios/endpoints.sh
+sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`endpoints.sh` sends the same visitors to each endpoint. To write a new one, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 
-Write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself. A change to `demo/serve.js` or to a scenario changes what the transcript can show, so review it as closely as the change itself.
+Write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself. A change to `demo/serve.js`, a settings file, or a scenario changes what the transcript can show, so review it as closely as the change itself.
