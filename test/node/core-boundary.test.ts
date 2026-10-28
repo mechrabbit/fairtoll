@@ -1,37 +1,45 @@
 import { ESLint } from "eslint";
+import { resolve } from "node:path";
+import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
-const eslint = new ESLint();
+const probe = resolve("src/core/probe.ts");
+const { options } = ts.getParsedCommandLineOfConfigFile(resolve("src/core/tsconfig.json"), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} })!;
 
-async function restrictedRules(code: string, filePath: string) {
-	const [result] = await eslint.lintText(code, { filePath });
-	return (result?.messages ?? [])
-		.map((m) => m.ruleId)
-		.filter((id) => id === "no-restricted-imports" || id === "no-restricted-globals");
+/** The type errors `code` would have as a file in src/core, checked with core's own tsconfig. */
+function typeErrors(code: string): string[] {
+	const host = ts.createCompilerHost(options);
+	const getSourceFile = host.getSourceFile;
+	host.getSourceFile = (name, ...rest) => (name === probe ? ts.createSourceFile(name, code, ts.ScriptTarget.Latest) : getSourceFile(name, ...rest));
+	const program = ts.createProgram([probe], options, host);
+	return ts.getPreEmitDiagnostics(program, program.getSourceFile(probe)).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 }
 
-const nodeOnly = [
-	'import { readFileSync } from "node:fs";',
-	'import { createHash } from "crypto";',
-	'import express from "express";',
-	"export const used = [readFileSync, createHash, express, process, Buffer, require, __dirname, __filename];",
-].join("\n");
-
 describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
-	test("lint rejects Node built-in imports, express, and Node globals in src/core", async () => {
-		expect(await restrictedRules(nodeOnly, "src/core/probe.ts")).toEqual([
-			"no-restricted-imports", // node:fs
-			"no-restricted-imports", // crypto
-			"no-restricted-imports", // express
-			"no-restricted-globals", // process
-			"no-restricted-globals", // Buffer
-			"no-restricted-globals", // require
-			"no-restricted-globals", // __dirname
-			"no-restricted-globals", // __filename
-		]);
+	test.each([
+		'import { readFileSync } from "node:fs"; export const used = readFileSync;',
+		'import { createHash } from "crypto"; export const used = createHash;',
+		"export const used = process;",
+		"export const used = Buffer;",
+		"export const used = require;",
+		"export const used = __dirname;",
+		"export const used = setImmediate;",
+		"export const used = document;",
+	])("core's typecheck rejects %s", (code) => {
+		expect(typeErrors(code)).not.toEqual([]);
 	});
 
-	test("lint allows the same code in an adapter", async () => {
-		expect(await restrictedRules(nodeOnly, "src/express/probe.ts")).toEqual([]);
+	test("core's typecheck accepts the Web APIs core uses", () => {
+		expect(typeErrors('export const used = new Request("https://example.com/").headers.get("user-agent"); console.error(used);')).toEqual([]);
+	});
+
+	test("lint rejects express in src/core, and allows it in an adapter", async () => {
+		const eslint = new ESLint();
+		const rules = async (filePath: string) => {
+			const [result] = await eslint.lintText('import express from "express";\nexport const used = express;\n', { filePath });
+			return (result?.messages ?? []).map((m) => m.ruleId);
+		};
+		expect(await rules("src/core/probe.ts")).toEqual(["no-restricted-imports"]);
+		expect(await rules("src/express/probe.ts")).toEqual([]);
 	});
 });

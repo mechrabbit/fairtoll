@@ -30,7 +30,7 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p src/core",
 		"lint": "eslint .",
 		"test": "vitest run",
 		"demo:serve": "npm run build --silent && node demo/serve.js",

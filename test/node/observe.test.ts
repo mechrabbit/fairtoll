@@ -33,9 +33,9 @@ describe("observe", () => {
 		return { events, log: (event: DecisionEvent) => void events.push(event) };
 	}
 
-	test("logs one versioned event per request, with the path but not the query string", async () => {
+	test("logs one versioned event per request, with the path it is given", async () => {
 		const { events, log } = collect();
-		await observe(request(gptBot), log);
+		await observe(request(gptBot), "/articles/1", log);
 		expect(events).toEqual([
 			{ fairtoll: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/1", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
 		]);
@@ -43,7 +43,7 @@ describe("observe", () => {
 
 	test("a human request isn't logged", async () => {
 		const { events, log } = collect();
-		await observe(request(chrome), log);
+		await observe(request(chrome), "/articles/1", log);
 		expect(events).toEqual([]);
 	});
 
@@ -56,7 +56,7 @@ describe("observe", () => {
 		const req = request(gptBot);
 		// The classifier reads the user-agent, so a header that can't be read makes it throw.
 		vi.spyOn(Headers.prototype, "get").mockImplementation(boom);
-		await expect(observe(req, () => {})).resolves.toBeUndefined();
+		await expect(observe(req, "/articles/1", () => {})).resolves.toBeUndefined();
 		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});
@@ -66,7 +66,7 @@ describe("observe", () => {
 		["an async sink", () => Promise.reject(new Error("boom"))],
 	])("if %s throws, observe resolves and reports the error", async (_name, log: EventSink) => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
-		await expect(observe(request(gptBot), log)).resolves.toBeUndefined();
+		await expect(observe(request(gptBot), "/articles/1", log)).resolves.toBeUndefined();
 		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});

@@ -129,6 +129,10 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 		["a path that starts with //", raw("GET //articles/1 HTTP/1.1", "example.com"), "//articles/1"],
 		["an absolute-form target with an invalid port", raw("GET http://example.com:99999/articles/1 HTTP/1.1", "example.com"), "/articles/1"],
 		["an absolute-form target whose path starts with //", raw("GET http://example.com//articles/1 HTTP/1.1", "example.com"), "//articles/1"],
+		["a path with encoded dot segments", raw("GET /articles/%2e%2e/admin HTTP/1.1", "example.com"), "/articles/%2e%2e/admin"],
+		["a path with dot segments", raw("GET /articles/../admin HTTP/1.1", "example.com"), "/articles/../admin"],
+		["a path with a backslash", raw("GET /articles\\1 HTTP/1.1", "example.com"), "/articles\\1"],
+		["a target with a fragment", raw("GET /articles/1#top HTTP/1.1", "example.com"), "/articles/1"],
 	])("%s", async (_name, request, path) => {
 		const { events, log } = collect();
 		const without = await send(site(), request);

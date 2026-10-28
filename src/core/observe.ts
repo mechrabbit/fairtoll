@@ -23,13 +23,16 @@ export type EventSink = (event: DecisionEvent) => void | Promise<void>;
  * Classifies and logs one request. A human request isn't logged, because that would add a line to the
  * app's logs for every page view. It never throws: if a step fails, it reports the error and returns,
  * so the adapter serves the page as if Fairtoll weren't there.
+ *
+ * `path` is the path the app routes the request by, without the query string. The adapter passes it,
+ * because `request.url` resolves dot segments and so can name a different page.
  */
-export async function observe(request: Request, log: EventSink): Promise<void> {
+export async function observe(request: Request, path: string, log: EventSink): Promise<void> {
 	try {
 		const time = new Date().toISOString();
 		const { class: cls, reason } = classify(request);
 		if (cls === "human") return;
-		await log({ fairtoll: 1, time, path: new URL(request.url).pathname, class: cls, reason, action: "allow" });
+		await log({ fairtoll: 1, time, path, class: cls, reason, action: "allow" });
 	} catch (error) {
 		console.error("fairtoll: observing a request failed, so the request was passed through unobserved:", error);
 	}
