@@ -4,7 +4,13 @@ import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
 const probe = resolve("src/core/probe.ts");
-const { options } = ts.getParsedCommandLineOfConfigFile(resolve("src/core/tsconfig.json"), {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} })!;
+const config = ts.getParsedCommandLineOfConfigFile(resolve("src/core/tsconfig.json"), {}, {
+	...ts.sys,
+	onUnRecoverableConfigFileDiagnostic: (d) => {
+		throw new Error(ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+	},
+});
+const options = config?.options ?? {};
 
 /** The type errors `code` would have as a file in src/core, checked with core's own tsconfig. */
 function typeErrors(code: string): string[] {
@@ -26,20 +32,25 @@ describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
 		"export const used = setImmediate;",
 		"export const used = document;",
 	])("core's typecheck rejects %s", (code) => {
-		expect(typeErrors(code)).not.toEqual([]);
+		expect(typeErrors(code)).toEqual([expect.stringMatching(/^Cannot find (name|module)/)]);
+	});
+
+	test("core's tsconfig parses without errors", () => {
+		expect(config?.errors).toEqual([]);
 	});
 
 	test("core's typecheck accepts the Web APIs core uses", () => {
 		expect(typeErrors('export const used = new Request("https://example.com/").headers.get("user-agent"); console.error(used);')).toEqual([]);
 	});
 
-	test("lint rejects express in src/core, and allows it in an adapter", async () => {
+	test("lint rejects express and a reference to Node's types in src/core, and allows them in an adapter", async () => {
 		const eslint = new ESLint();
 		const rules = async (filePath: string) => {
-			const [result] = await eslint.lintText('import express from "express";\nexport const used = express;\n', { filePath });
+			const code = '/// <reference types="node" />\nimport express from "express";\nexport const used = express;\n';
+			const [result] = await eslint.lintText(code, { filePath });
 			return (result?.messages ?? []).map((m) => m.ruleId);
 		};
-		expect(await rules("src/core/probe.ts")).toEqual(["no-restricted-imports"]);
+		expect(await rules("src/core/probe.ts")).toEqual(["@typescript-eslint/triple-slash-reference", "no-restricted-imports"]);
 		expect(await rules("src/express/probe.ts")).toEqual([]);
 	});
 });

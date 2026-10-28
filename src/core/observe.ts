@@ -9,7 +9,7 @@ export interface DecisionEvent {
 	readonly fairtoll: 1;
 	/** ISO 8601 time the request arrived. */
 	readonly time: string;
-	/** The URL path, without the query string. */
+	/** The path the app routes the request by, without the query string. */
 	readonly path: string;
 	readonly class: RequestClass;
 	readonly reason: string;

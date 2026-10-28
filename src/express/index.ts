@@ -1,7 +1,6 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
+import parseurl from "parseurl";
 import { observe, parseConfig, type EventSink } from "../core/index.js";
-
-const origin = "http://localhost";
 
 export interface Options {
 	/**
@@ -29,8 +28,9 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 
 	return (req, _res, next) => {
 		try {
-			const path = routedPath(req);
-			void observe(toWebRequest(req, path), path, log);
+			// The path Express routes by, from the parser Express itself uses. A Web Request's URL can't carry it,
+			// because a URL resolves dot segments and backslashes: /articles/%2e%2e/admin would become /admin.
+			void observe(toWebRequest(req), parseurl.original(req)?.pathname ?? "", log);
 		} catch (error) {
 			console.error("fairtoll: could not read the request, so it was passed through unobserved:", error);
 		}
@@ -39,27 +39,15 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 }
 
 /**
- * The path Express routes the request by: its target without the origin or the query string. It is read from
- * the raw target because a URL resolves dot segments and backslashes, so /articles/%2e%2e/admin would become
- * /admin, a page Express didn't serve.
- */
-function routedPath(req: ExpressRequest): string {
-	// An absolute-form target such as http://host/articles/1 is routed by its path alone, so drop its origin.
-	const path = req.originalUrl.replace(/^[a-z][a-z\d+.-]*:\/\/[^/?#]*/i, "").split(/[?#]/, 1)[0] ?? "";
-	return path.startsWith("/") ? path : `/${path}`;
-}
-
-/**
- * A Web Request with the request's headers. It has no body, so the app still reads the body itself.
- * The origin is fixed, because the Host header is client input and nothing reads it yet. The method is left
+ * A Web Request with the request's headers. It has no body, so the app still reads the body itself. Its URL
+ * is fixed, because the Host header is client input and nothing reads the URL yet. The method is left
  * out for the same reason, and because a Web Request refuses methods such as TRACE that Express still serves.
  */
-function toWebRequest(req: ExpressRequest, path: string): Request {
+function toWebRequest(req: ExpressRequest): Request {
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(req.headers)) {
 		if (value === undefined) continue;
 		for (const item of Array.isArray(value) ? value : [value]) headers.append(name, item);
 	}
-	// Appending keeps a path such as //articles/1 a path, as Express routes it, rather than a host.
-	return new Request(`${origin}${path}`, { headers });
+	return new Request("http://localhost/", { headers });
 }

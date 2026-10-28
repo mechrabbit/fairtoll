@@ -133,6 +133,8 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 		["a path with dot segments", raw("GET /articles/../admin HTTP/1.1", "example.com"), "/articles/../admin"],
 		["a path with a backslash", raw("GET /articles\\1 HTTP/1.1", "example.com"), "/articles\\1"],
 		["a target with a fragment", raw("GET /articles/1#top HTTP/1.1", "example.com"), "/articles/1"],
+		["a target with a fragment and a backslash, which Express rewrites", raw("GET /articles\\1#top HTTP/1.1", "example.com"), "/articles/1"],
+		["an asterisk-form target", raw("OPTIONS * HTTP/1.1", "example.com"), "*"],
 	])("%s", async (_name, request, path) => {
 		const { events, log } = collect();
 		const without = await send(site(), request);
