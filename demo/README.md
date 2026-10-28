@@ -13,8 +13,9 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | --- | --- |
 | `/open` | Not at all: no Fairtoll |
 | `/monitor` | Fairtoll classifies each request and lets it through |
+| `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
 
-Blocking and charging get their own endpoints, `/blocked` and `/charged`, once Fairtoll can do them.
+Charging gets its own endpoint, `/charged`, once Fairtoll can do it.
 
 Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. Any other path gets a 404 listing the endpoints. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
@@ -33,7 +34,7 @@ To compare settings, send the same requests to a run with each, as in `npm run d
 { "description": "Fairtoll with logging on", "config": {}, "log": true }
 ```
 
-`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `log: true` turns on the `log` option. An invalid config stops the server at startup.
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it. `log: true` turns on the `log` option. An invalid config stops the server at startup.
 
 `PORT` sets the port, and the server stops with an error if the port is in use.
 

@@ -20,6 +20,7 @@ const setups = {
 	"no Fairtoll": [],
 	default: [fairtoll({})],
 	"logging on": [fairtoll({}, { log: () => {} })],
+	blocking: [fairtoll({ ai: "block" })],
 };
 const paths = Object.keys(setups).map((_, i) => `/${i}/articles/42?ref=feed`);
 

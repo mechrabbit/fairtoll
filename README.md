@@ -23,7 +23,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 ## Objectives
 
 1. **Show publishers their AI traffic first.** The default install only observes. It records which bots and agents visit, how often, and which pages they read. It changes no responses.
-2. **Make every step reversible.** A publisher moves from observing, to blocking unverified bots, to charging on a few paths, to a full policy. Each step is a config change. Turning a step off restores the site exactly.
+2. **Make every step reversible.** A publisher moves from observing, to blocking AI bots and agents, to charging on a few paths, to a full policy. Each step is a config change. Turning a step off restores the site exactly.
 3. **Never break the site.** Fail open. If the package throws, the page serves normally.
 4. **Run on and off Cloudflare from the same config.** A policy written for the Express adapter works unchanged in the Cloudflare Worker adapter.
 5. **Hold no money and no keys.** Payments settle directly to the publisher's wallet. The package never takes custody and never needs a private key.
@@ -59,7 +59,7 @@ A per-path policy maps each class to one of four actions:
 - Require a license.
 - Charge.
 
-A publisher's rollout moves through four steps: observe, block unverified bots, charge on a few paths, and full policy. Each step is a valid state of the config, not a separate mode of the code.
+A publisher's rollout moves through four steps: observe, block AI bots and agents, charge on a few paths, and full policy. Each step is a valid state of the config, not a separate mode of the code.
 
 Prices come from a pricing hook. The default hook returns the static price from the config. The hosted service can supply a different hook.
 

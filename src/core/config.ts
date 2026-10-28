@@ -1,5 +1,8 @@
-/** No fields yet: every config only observes. */
-export type Config = Readonly<Record<never, never>>;
+/** What the publisher asks Fairtoll to do. An empty config only observes. */
+export interface Config {
+	/** What happens to a request from an AI bot or agent. */
+	readonly ai: "allow" | "block";
+}
 
 /** `field` names where the error is, such as "rules". */
 export interface ConfigError {
@@ -13,9 +16,16 @@ export function parseConfig(input: unknown): ParseResult {
 	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ field: "config", message: "must be a plain object" }] };
 	}
-	const errors = Object.keys(input).map((field) => ({ field, message: "is not a known field" }));
+	const errors = Object.keys(input)
+		.filter((field) => field !== "ai")
+		.map((field) => ({ field, message: "is not a known field" }));
+	// Read once and keep only what was checked, so a getter or an extra key can't reach the config.
+	const ai = (Object.hasOwn(input, "ai") ? input.ai : undefined) ?? "allow";
+	if (ai !== "allow" && ai !== "block") {
+		return { ok: false, errors: [...errors, { field: "ai", message: 'must be "allow" or "block"' }] };
+	}
 	if (errors.length > 0) return { ok: false, errors };
-	return { ok: true, config: {} };
+	return { ok: true, config: { ai } };
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */

@@ -1,6 +1,6 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { observe, parseConfig, type EventSink } from "../core/index.js";
+import { allowsEverything, parseConfig, screen, type EventSink } from "../core/index.js";
 
 export interface Options {
 	/**
@@ -10,8 +10,11 @@ export interface Options {
 	readonly log?: EventSink;
 }
 
+const blockedMessage = "This site does not allow AI bots or agents.\n";
+
 /**
- * Express middleware that observes every request and passes it on unchanged.
+ * Express middleware that screens every request, answers a request the config blocks with a 403, and
+ * passes the rest on unchanged.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
@@ -22,17 +25,28 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (options.log !== undefined && typeof options.log !== "function") {
 		throw new Error("Invalid fairtoll options: log must be a function");
 	}
+	const { config } = result;
 	const { log } = options;
-	// Observing has no other output yet, so with nothing to log there is nothing to run.
-	if (log === undefined) return (_req, _res, next) => next();
+	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
-	return (req, _res, next) => {
+	return (req, res, next) => {
+		let request: Request;
+		let path: string;
 		try {
+			request = toWebRequest(req);
 			// The path Express routes by, from the parser Express itself uses. A Web Request's URL can't carry it,
 			// because a URL resolves dot segments and backslashes: /articles/%2e%2e/admin would become /admin.
-			void observe(toWebRequest(req), parseurl.original(req)?.pathname ?? "", log);
+			path = parseurl.original(req)?.pathname ?? "";
 		} catch (error) {
-			console.error("fairtoll: could not read the request, so it was passed through unobserved:", error);
+			console.error("fairtoll: could not read the request, so it was passed through unscreened:", error);
+			next();
+			return;
+		}
+		// screen never throws: if a step fails, it reports the error and allows the request.
+		if (screen(request, path, config, log).kind === "block") {
+			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
+			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
+			return;
 		}
 		next();
 	};
