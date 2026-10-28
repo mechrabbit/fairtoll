@@ -1,0 +1,35 @@
+#!/bin/sh
+# An AI crawler that gets a price, pays it, and reads the page, then tries the same payment again, next to a
+# reader and a crawler reading robots.txt. Starts the demo server, sends each request with curl, and stops the
+# server. Run from the repo root:
+#   sh demo/scenarios/charging.sh demo/settings/logging.json
+set -e
+npm run --silent build
+export PORT="${PORT:-3000}"
+node demo/serve.js "$@" &
+server=$!
+trap 'kill $server 2>/dev/null' EXIT
+sleep 1
+# Stop if the server didn't start, such as when the port is in use, so no request reaches another server.
+kill -0 $server 2>/dev/null || exit 1
+
+# send <description> <curl arguments...>
+send() {
+	echo "--- $1"
+	shift
+	curl -sS -i "$@"
+	sleep 0.1
+	echo
+}
+
+url="http://localhost:$PORT/charged/articles/42"
+send "A reader in Chrome" -H 'Demo-Visitor: Chrome' "$url"
+quote=$(mktemp)
+trap 'kill $server 2>/dev/null; rm -f "$quote"' EXIT
+send "GPTBot reads the article without paying" -H 'Demo-Visitor: GPTBot' "$url" | tee "$quote"
+echo "--- GPTBot signs a payment for the price in PAYMENT-REQUIRED with demo/pay.js"
+payment=$(node demo/pay.js "$(tr -d '\r' < "$quote" | sed -n 's/^payment-required: //Ip')")
+echo
+send "GPTBot sends the article request again with its payment" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
+send "GPTBot sends the same payment a second time" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
+send "GPTBot reads robots.txt, which is always free" -H 'Demo-Visitor: GPTBot' "http://localhost:$PORT/robots.txt"

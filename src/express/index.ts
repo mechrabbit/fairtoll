@@ -1,6 +1,6 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { allowsEverything, parseConfig, screen, type EventSink } from "../core/index.js";
+import { allowsEverything, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
 
 export interface Options {
 	/**
@@ -8,13 +8,19 @@ export interface Options {
 	 * because a path can carry a secret such as a reset token, so the publisher chooses where events go.
 	 */
 	readonly log?: EventSink;
+	/**
+	 * The x402 facilitator that settles payments, passed to x402's `HTTPFacilitatorClient`. It defaults to
+	 * x402.org's, which only settles on testnets, so charging on "base" needs one, such as Coinbase's from
+	 * `createFacilitatorConfig` in `@coinbase/x402`.
+	 */
+	readonly facilitator?: FacilitatorConfig;
 }
 
 const blockedMessage = "This site does not allow AI bots or agents.\n";
 
 /**
- * Express middleware that screens every request, answers a request the config blocks with a 403, and
- * passes the rest on unchanged.
+ * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
+ * request the config charges, and passes the rest on unchanged.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
@@ -26,7 +32,11 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 		throw new Error("Invalid fairtoll options: log must be a function");
 	}
 	const { config } = result;
-	const { log } = options;
+	const { log, facilitator } = options;
+	if (config.ai === "charge" && config.charge.network === "base" && facilitator === undefined) {
+		throw new Error('Invalid fairtoll options: charging on "base" needs a facilitator, because the default one only settles on testnets');
+	}
+	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
 	return (req, res, next) => {
@@ -42,10 +52,28 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			next();
 			return;
 		}
-		if (screen(request, path, config, log).kind === "block") {
+		const action = screen(request, req.method, path, config, log);
+		if (action.kind === "block") {
 			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;
+		}
+		if (action.kind === "charge" && charge) {
+			// Express catches anything the outcome's handler throws, because the promise is returned to it.
+			return charge(request, req.method, path).then(
+				(outcome) => {
+					if (outcome.kind === "respond") {
+						res.status(outcome.status).set(outcome.headers).send(outcome.body);
+						return;
+					}
+					res.set(outcome.headers);
+					next();
+				},
+				(error: unknown) => {
+					console.error("fairtoll: charging a request failed, so the page was served without payment:", error);
+					next();
+				},
+			);
 		}
 		next();
 	};
