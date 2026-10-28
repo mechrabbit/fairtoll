@@ -3,11 +3,7 @@
  * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
  */
 export interface Config {
-	/**
-	 * What happens to a request from an AI bot or agent. Blocking covers only requests that reach the site: a
-	 * cache in front of it, such as a CDN, can answer a bot with a cached page without asking the site, so a
-	 * site behind one should block AI bots in the cache too.
-	 */
+	/** What happens to a request from an AI bot or agent. */
 	readonly ai: "allow" | "block";
 }
 
