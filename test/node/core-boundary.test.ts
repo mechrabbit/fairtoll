@@ -12,14 +12,16 @@ async function restrictedRules(code: string, filePath: string) {
 
 const nodeOnly = [
 	'import { readFileSync } from "node:fs";',
+	'import { createHash } from "crypto";',
 	'import express from "express";',
-	"export const used = [readFileSync, express, process, Buffer, require, __dirname, __filename];",
+	"export const used = [readFileSync, createHash, express, process, Buffer, require, __dirname, __filename];",
 ].join("\n");
 
 describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
-	test("lint rejects node:* imports, express, and Node globals in src/core", async () => {
+	test("lint rejects Node built-in imports, express, and Node globals in src/core", async () => {
 		expect(await restrictedRules(nodeOnly, "src/core/probe.ts")).toEqual([
 			"no-restricted-imports", // node:fs
+			"no-restricted-imports", // crypto
 			"no-restricted-imports", // express
 			"no-restricted-globals", // process
 			"no-restricted-globals", // Buffer

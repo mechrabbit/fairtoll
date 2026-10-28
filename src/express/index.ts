@@ -28,7 +28,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (log === undefined) return (_req, _res, next) => next();
 	const steps = { classify, decide, log };
 
-	// Logging finishes in the background, so observing adds no wait before the app handles the request.
+	// An async log finishes in the background, so it adds no wait before the app handles the request.
+	// A synchronous log runs before the app does.
 	return (req, _res, next) => {
 		try {
 			void observe(toWebRequest(req), steps);
@@ -47,7 +48,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 function toWebRequest(req: ExpressRequest): Request {
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(req.headers)) {
-		for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) headers.append(name, item);
+		if (value === undefined) continue;
+		for (const item of Array.isArray(value) ? value : [value]) headers.append(name, item);
 	}
 	// An absolute-form target such as http://host/articles/1 is routed by its path alone, so drop its origin.
 	// Appending keeps a target such as //articles/1 a path, as Express routes it, rather than a host.

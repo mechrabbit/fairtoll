@@ -70,12 +70,12 @@ async function measure(rounds) {
 
 /** The time in ms from sending a request until its whole response has arrived. */
 function time(port, agent, path) {
-	const start = process.hrtime.bigint();
+	const start = performance.now();
 	return new Promise((resolve, reject) => {
 		http.get({ port, path, agent, headers: { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130.0.0.0 Safari/537.36" } }, (res) => {
 			if (res.statusCode !== 200) reject(new Error(`${path} answered ${res.statusCode}`));
 			res.resume();
-			res.on("end", () => resolve(Number(process.hrtime.bigint() - start) / 1e6));
+			res.on("end", () => resolve(performance.now() - start));
 		}).on("error", reject);
 	});
 }

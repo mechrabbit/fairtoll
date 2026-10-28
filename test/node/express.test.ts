@@ -1,6 +1,7 @@
 import express from "express";
 import type { AddressInfo } from "node:net";
 import { connect } from "node:net";
+import { buffer } from "node:stream/consumers";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
 import { fairtoll } from "../../src/express/index.js";
@@ -34,9 +35,7 @@ async function send(app: express.Express, raw: string): Promise<Buffer> {
 	try {
 		const socket = connect((server.address() as AddressInfo).port);
 		socket.end(raw);
-		const chunks: Buffer[] = [];
-		for await (const chunk of socket) chunks.push(chunk as Buffer);
-		return Buffer.concat(chunks);
+		return await buffer(socket);
 	} finally {
 		server.close();
 	}

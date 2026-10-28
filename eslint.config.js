@@ -1,4 +1,7 @@
+import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
+
+const runtimeNeutral = "Core runs in Node and Workers. Use Web-standard APIs, or move this code to an adapter.";
 
 export default tseslint.config(
 	{ ignores: ["dist/", "node_modules/"] },
@@ -9,10 +12,12 @@ export default tseslint.config(
 			"no-restricted-imports": [
 				"error",
 				{
+					// A built-in such as "fs" can be imported without the node: prefix.
+					paths: builtinModules.map((name) => ({ name, message: runtimeNeutral })),
 					patterns: [
 						{
 							regex: "^node:",
-							message: "Core runs in Node and Workers. Use Web-standard APIs, or move this code to an adapter.",
+							message: runtimeNeutral,
 						},
 						{
 							regex: "^express($|/)",
@@ -25,7 +30,7 @@ export default tseslint.config(
 				"error",
 				...["process", "Buffer", "require", "__dirname", "__filename"].map((name) => ({
 					name,
-					message: "Core runs in Node and Workers. Use Web-standard APIs, or move this code to an adapter.",
+					message: runtimeNeutral,
 				})),
 			],
 		},
