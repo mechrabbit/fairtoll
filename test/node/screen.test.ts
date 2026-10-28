@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { allowsEverything, classify, decide, screen, type Config, type DecisionEvent, type EventSink } from "../../src/core/index.js";
+import { classify, type Config } from "../../src/core/index.js";
+import { allowsEverything, decide, screen, type DecisionEvent, type EventSink } from "../../src/core/screen.js";
 import { requestClasses } from "../../src/core/types.js";
 
 const request = (userAgent?: string) =>

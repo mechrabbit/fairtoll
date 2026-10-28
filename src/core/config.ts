@@ -1,4 +1,7 @@
-/** What the publisher asks Fairtoll to do. An empty config only observes. */
+/**
+ * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
+ * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
+ */
 export interface Config {
 	/** What happens to a request from an AI bot or agent. */
 	readonly ai: "allow" | "block";
@@ -19,7 +22,6 @@ export function parseConfig(input: unknown): ParseResult {
 	const errors = Object.keys(input)
 		.filter((field) => field !== "ai")
 		.map((field) => ({ field, message: "is not a known field" }));
-	// Read once and keep only what was checked, so a getter or an extra key can't reach the config.
 	const ai = (Object.hasOwn(input, "ai") ? input.ai : undefined) ?? "allow";
 	if (ai !== "allow" && ai !== "block") {
 		return { ok: false, errors: [...errors, { field: "ai", message: 'must be "allow" or "block"' }] };

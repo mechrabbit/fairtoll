@@ -20,7 +20,7 @@ export function allowsEverything(config: Config): boolean {
  */
 export interface DecisionEvent {
 	readonly fairtoll: 1;
-	/** ISO 8601 time the request arrived. */
+	/** ISO 8601 time Fairtoll screened the request. */
 	readonly time: string;
 	/** The path the app routes the request by, without the query string. */
 	readonly path: string;

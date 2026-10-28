@@ -42,7 +42,6 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			next();
 			return;
 		}
-		// screen never throws: if a step fails, it reports the error and allows the request.
 		if (screen(request, path, config, log).kind === "block") {
 			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);

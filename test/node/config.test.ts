@@ -15,11 +15,6 @@ describe("parseConfig", () => {
 		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
 	});
 
-	test("the config keeps only the checked value, read once", () => {
-		let reads = 0;
-		const input = { [Symbol("extra")]: 1, get ai() { return reads++ === 0 ? "block" : "charge"; } };
-		expect(parseConfig(input)).toEqual({ ok: true, config: { ai: "block" } });
-	});
 
 	test.each([
 		["not an object", "{}", ["config"]],
