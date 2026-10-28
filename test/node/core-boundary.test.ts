@@ -10,7 +10,7 @@ const config = ts.getParsedCommandLineOfConfigFile(resolve("src/core/tsconfig.js
 		throw new Error(ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 	},
 });
-const options = config?.options ?? {};
+const options = config!.options;
 
 /** The type errors `code` would have as a file in src/core, checked with core's own tsconfig. */
 function typeErrors(code: string): string[] {
@@ -36,21 +36,21 @@ describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
 	});
 
 	test("core's tsconfig parses without errors", () => {
-		expect(config?.errors).toEqual([]);
+		expect(config!.errors).toEqual([]);
 	});
 
 	test("core's typecheck accepts the Web APIs core uses", () => {
 		expect(typeErrors('export const used = new Request("https://example.com/").headers.get("user-agent"); console.error(used);')).toEqual([]);
 	});
 
-	test("lint rejects express and a reference to Node's types in src/core, and allows them in an adapter", async () => {
+	test("lint rejects express and references to Node's types or the DOM in src/core, and allows them in an adapter", async () => {
 		const eslint = new ESLint();
 		const rules = async (filePath: string) => {
-			const code = '/// <reference types="node" />\nimport express from "express";\nexport const used = express;\n';
+			const code = '/// <reference types="node" />\n/// <reference lib="dom" />\nimport express from "express";\nexport const used = express;\n';
 			const [result] = await eslint.lintText(code, { filePath });
 			return (result?.messages ?? []).map((m) => m.ruleId);
 		};
-		expect(await rules("src/core/probe.ts")).toEqual(["@typescript-eslint/triple-slash-reference", "no-restricted-imports"]);
+		expect(await rules("src/core/probe.ts")).toEqual(["@typescript-eslint/triple-slash-reference", "@typescript-eslint/triple-slash-reference", "no-restricted-imports"]);
 		expect(await rules("src/express/probe.ts")).toEqual([]);
 	});
 });
