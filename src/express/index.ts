@@ -28,8 +28,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (log === undefined) return (_req, _res, next) => next();
 	const steps = { classify, decide, log };
 
-	// An async log finishes in the background, so it adds no wait before the app handles the request.
-	// A synchronous log runs before the app does.
+	// The log is called before the app runs. An async log finishes in the background, so only its
+	// synchronous part adds a wait.
 	return (req, _res, next) => {
 		try {
 			void observe(toWebRequest(req), steps);
