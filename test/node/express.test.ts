@@ -108,6 +108,15 @@ describe("blocking AI", () => {
 		expect(withBlocking.equals(without)).toBe(true);
 	});
 
+	test("lets an AI crawler read /robots.txt", async () => {
+		const app = express();
+		app.use(fairtoll(blocking));
+		app.get("/robots.txt", (_req, res) => res.type("text/plain").send("User-agent: GPTBot\nDisallow: /\n"));
+		const response = (await send(app, get("/robots.txt?x=1", gptBot))).toString();
+		expect(response).toMatch(/^HTTP\/1\.1 200 OK\r\n/);
+		expect(response).toMatch(/\r\n\r\nUser-agent: GPTBot\nDisallow: \/\n$/);
+	});
+
 	test("a blocked request is logged with action block", async () => {
 		const { events, log } = collect();
 		await send(site(fairtoll(blocking, { log })), get("/articles/2", gptBot));

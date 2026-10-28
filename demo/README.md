@@ -17,6 +17,8 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 
 Charging gets its own endpoint, `/charged`, once Fairtoll can do it.
 
+The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
+
 Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see. Any other path gets a 404 listing the endpoints. The server prints each request with the user-agent Fairtoll saw, then any events passed to `log`, anything Fairtoll writes to stdout or stderr, and the response status.
 
 ## Settings

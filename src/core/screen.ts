@@ -32,7 +32,7 @@ export interface DecisionEvent {
 export type EventSink = (event: DecisionEvent) => void | Promise<void>;
 
 /**
- * Classifies one request, decides what to do with it, and logs the decision. A human request isn't
+ * Classifies one request, decides what to do with it, and logs the decision. `/robots.txt` is always allowed. A human request isn't
  * logged, because that would add a line to the app's logs for every page view. An async log isn't
  * awaited, so it adds no wait before the request is handled. It never throws: if a step fails, it
  * reports the error and allows the request, so the adapter serves the page as if Fairtoll weren't there.
@@ -43,7 +43,9 @@ export type EventSink = (event: DecisionEvent) => void | Promise<void>;
 export function screen(request: Request, path: string, config: Config, log?: EventSink): Action {
 	try {
 		const { class: cls, reason } = classify(request);
-		const action = decide(config, cls);
+		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
+		// tell it the site has no rules at all.
+		const action = path === "/robots.txt" ? allow : decide(config, cls);
 		if (cls !== "human" && log) {
 			// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
 			void (async () => {

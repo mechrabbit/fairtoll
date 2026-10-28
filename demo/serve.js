@@ -62,6 +62,10 @@ const endpoints =
 app.use(["/open", "/monitor", "/blocked"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
+// The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
+app.get("/robots.txt", fairtoll(blockedConfig, options), (_req, res) => {
+	res.type("text/plain").send("User-agent: GPTBot\nDisallow: /\n");
+});
 app.use((_req, res) => {
 	res.status(404).send(`Send requests under one of the endpoints:\n${endpoints}\n`);
 });

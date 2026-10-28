@@ -68,6 +68,14 @@ describe("screen", () => {
 		expect(events).toEqual([expect.objectContaining({ class: "unverifiedBot", action: "block" })]);
 	});
 
+	test("always allows /robots.txt, and logs it as allowed", () => {
+		const { events, log } = collect();
+		expect(screen(request(gptBot), "/robots.txt", blocking, log)).toEqual({ kind: "allow" });
+		expect(events).toEqual([expect.objectContaining({ path: "/robots.txt", action: "allow" })]);
+		expect(screen(request(gptBot), "/robots.txt/x", blocking)).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "/blog/robots.txt", blocking)).toEqual({ kind: "block" });
+	});
+
 	test("blocks without a log", () => {
 		expect(screen(request(gptBot), "/articles/1", blocking)).toEqual({ kind: "block" });
 	});
