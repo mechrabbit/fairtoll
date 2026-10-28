@@ -51,13 +51,21 @@ describe("observe", () => {
 		throw new Error("boom");
 	};
 
-	test.each([
-		["the classifier", () => vi.spyOn(Headers.prototype, "get").mockImplementation(boom), collect().log],
-		["the sink", () => {}, boom],
-		["an async sink", () => {}, () => Promise.reject(new Error("boom"))],
-	])("if %s throws, observe resolves and reports the error", async (_name, setup: () => void, log: EventSink) => {
+	test("if the classifier throws, observe resolves and reports the error", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
-		setup();
+		const req = request(gptBot);
+		// The classifier reads the user-agent, so a header that can't be read makes it throw.
+		vi.spyOn(Headers.prototype, "get").mockImplementation(boom);
+		await expect(observe(req, () => {})).resolves.toBeUndefined();
+		expect(error).toHaveBeenCalledOnce();
+		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
+	});
+
+	test.each([
+		["the sink", boom],
+		["an async sink", () => Promise.reject(new Error("boom"))],
+	])("if %s throws, observe resolves and reports the error", async (_name, log: EventSink) => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		await expect(observe(request(gptBot), log)).resolves.toBeUndefined();
 		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
