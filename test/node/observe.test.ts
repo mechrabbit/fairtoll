@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { classify, decide, observe, type DecisionEvent, type Steps } from "../../src/core/index.js";
+import { classify, observe, type DecisionEvent, type EventSink } from "../../src/core/index.js";
 
 const request = (userAgent?: string) =>
 	new Request("https://example.com/articles/1?token=secret", userAgent ? { headers: { "user-agent": userAgent } } : {});
@@ -28,22 +28,22 @@ describe("observe", () => {
 		vi.restoreAllMocks();
 	});
 
-	function steps(overrides: Partial<Steps> = {}) {
+	function collect() {
 		const events: DecisionEvent[] = [];
-		return { events, steps: { classify, decide, log: (event: DecisionEvent) => void events.push(event), ...overrides } };
+		return { events, log: (event: DecisionEvent) => void events.push(event) };
 	}
 
-	test("logs one versioned event per request, with the path but not the query string", async () => {
-		const { events, steps: s } = steps();
-		await observe(request(gptBot), s);
+	test("logs one versioned event per request, with the path it is given", async () => {
+		const { events, log } = collect();
+		await observe(request(gptBot), "/articles/1", log);
 		expect(events).toEqual([
 			{ fairtoll: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/1", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
 		]);
 	});
 
 	test("a human request isn't logged", async () => {
-		const { events, steps: s } = steps();
-		await observe(request(chrome), s);
+		const { events, log } = collect();
+		await observe(request(chrome), "/articles/1", log);
 		expect(events).toEqual([]);
 	});
 
@@ -51,14 +51,22 @@ describe("observe", () => {
 		throw new Error("boom");
 	};
 
-	test.each([
-		["the classifier", { classify: boom }],
-		["decide", { decide: boom }],
-		["the sink", { log: boom }],
-		["an async sink", { log: () => Promise.reject(new Error("boom")) }],
-	])("if %s throws, observe resolves and reports the error", async (_name, overrides: Partial<Steps>) => {
+	test("if the classifier throws, observe resolves and reports the error", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
-		await expect(observe(request(gptBot), steps(overrides).steps)).resolves.toBeUndefined();
+		const req = request(gptBot);
+		// The classifier reads the user-agent, so a header that can't be read makes it throw.
+		vi.spyOn(Headers.prototype, "get").mockImplementation(boom);
+		await expect(observe(req, "/articles/1", () => {})).resolves.toBeUndefined();
+		expect(error).toHaveBeenCalledOnce();
+		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
+	});
+
+	test.each([
+		["the sink", boom],
+		["an async sink", () => Promise.reject(new Error("boom"))],
+	])("if %s throws, observe resolves and reports the error", async (_name, log: EventSink) => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		await expect(observe(request(gptBot), "/articles/1", log)).resolves.toBeUndefined();
 		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});

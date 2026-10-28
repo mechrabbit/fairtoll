@@ -1,6 +1,7 @@
 import express from "express";
 import type { AddressInfo } from "node:net";
 import { connect } from "node:net";
+import { buffer } from "node:stream/consumers";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
 import { fairtoll } from "../../src/express/index.js";
@@ -34,9 +35,7 @@ async function send(app: express.Express, raw: string): Promise<Buffer> {
 	try {
 		const socket = connect((server.address() as AddressInfo).port);
 		socket.end(raw);
-		const chunks: Buffer[] = [];
-		for await (const chunk of socket) chunks.push(chunk as Buffer);
-		return Buffer.concat(chunks);
+		return await buffer(socket);
 	} finally {
 		server.close();
 	}
@@ -130,6 +129,12 @@ describe("requests a Web Request can't describe as sent are still logged", () =>
 		["a path that starts with //", raw("GET //articles/1 HTTP/1.1", "example.com"), "//articles/1"],
 		["an absolute-form target with an invalid port", raw("GET http://example.com:99999/articles/1 HTTP/1.1", "example.com"), "/articles/1"],
 		["an absolute-form target whose path starts with //", raw("GET http://example.com//articles/1 HTTP/1.1", "example.com"), "//articles/1"],
+		["a path with encoded dot segments", raw("GET /articles/%2e%2e/admin HTTP/1.1", "example.com"), "/articles/%2e%2e/admin"],
+		["a path with dot segments", raw("GET /articles/../admin HTTP/1.1", "example.com"), "/articles/../admin"],
+		["a path with a backslash", raw("GET /articles\\1 HTTP/1.1", "example.com"), "/articles\\1"],
+		["a target with a fragment", raw("GET /articles/1#top HTTP/1.1", "example.com"), "/articles/1"],
+		["a target with a fragment and a backslash, which Express rewrites", raw("GET /articles\\1#top HTTP/1.1", "example.com"), "/articles/1"],
+		["an asterisk-form target", raw("OPTIONS * HTTP/1.1", "example.com"), "*"],
 	])("%s", async (_name, request, path) => {
 		const { events, log } = collect();
 		const without = await send(site(), request);
