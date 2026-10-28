@@ -32,7 +32,7 @@ export interface DecisionEvent {
 export type EventSink = (event: DecisionEvent) => void | Promise<void>;
 
 /**
- * Classifies one request, decides what to do with it, and logs the decision. `/robots.txt` is always allowed. A human request isn't
+ * Classifies one request, decides what to do with it, and logs the decision. A human request isn't
  * logged, because that would add a line to the app's logs for every page view. An async log isn't
  * awaited, so it adds no wait before the request is handled. It never throws: if a step fails, it
  * reports the error and allows the request, so the adapter serves the page as if Fairtoll weren't there.

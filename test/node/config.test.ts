@@ -15,7 +15,6 @@ describe("parseConfig", () => {
 		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
 	});
 
-
 	test.each([
 		["not an object", "{}", ["config"]],
 		["null", null, ["config"]],

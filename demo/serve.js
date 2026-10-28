@@ -49,9 +49,11 @@ app.use((req, res, next) => {
 });
 const options = log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {};
 const blockedConfig = { ...config, ai: "block" };
+let blocked;
 try {
 	app.use("/monitor", fairtoll(config, options));
-	app.use("/blocked", fairtoll(blockedConfig, options));
+	blocked = fairtoll(blockedConfig, options);
+	app.use("/blocked", blocked);
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);
 	process.exit(1);
@@ -63,7 +65,7 @@ app.use(["/open", "/monitor", "/blocked"], express.text({ type: "*/*" }), (req, 
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
 // The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
-app.get("/robots.txt", fairtoll(blockedConfig, options), (_req, res) => {
+app.get("/robots.txt", blocked, (_req, res) => {
 	res.type("text/plain").send("User-agent: GPTBot\nDisallow: /\n");
 });
 app.use((_req, res) => {

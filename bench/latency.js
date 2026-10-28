@@ -31,6 +31,7 @@ const visitors = {
 const requests = Object.keys(setups).flatMap((setup, i) =>
 	Object.entries(visitors).map(([visitor, userAgent]) => ({
 		name: `${setup}, ${visitor}`,
+		visitor,
 		path: `/${i}/articles/42?ref=feed`,
 		userAgent,
 		status: setup === "blocking" && visitor === "AI bot" ? 403 : 200,
@@ -75,8 +76,8 @@ async function measure(rounds) {
 		server.kill();
 	}
 	const medians = Object.fromEntries(requests.map(({ name }, i) => [name, percentile(timings[i], 0.5)]));
-	for (const [i, { name }] of requests.entries()) {
-		const extra = medians[name] - medians[`no Fairtoll, ${name.split(", ")[1]}`];
+	for (const [i, { name, visitor }] of requests.entries()) {
+		const extra = medians[name] - medians[`no Fairtoll, ${visitor}`];
 		console.log(`${name.padEnd(20)} median ${medians[name].toFixed(3)} ms   p99 ${percentile(timings[i], 0.99).toFixed(3)} ms   extra ${extra >= 0 ? "+" : ""}${extra.toFixed(3)} ms`);
 	}
 	console.log();
