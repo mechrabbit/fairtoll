@@ -10,8 +10,8 @@ export interface Options {
 	readonly log?: EventSink;
 	/**
 	 * The x402 facilitator that settles payments, passed to x402's `HTTPFacilitatorClient`. It defaults to
-	 * x402.org's, which only settles on testnets, so charging on "base" needs one, such as Coinbase's from
-	 * `createFacilitatorConfig` in `@coinbase/x402`.
+	 * x402.org's, which only settles on testnets, so charging on "base" needs one with a `url`, such as
+	 * Coinbase's from `createFacilitatorConfig` in `@coinbase/x402`.
 	 */
 	readonly facilitator?: FacilitatorConfig;
 }
@@ -21,6 +21,8 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
 /**
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
  * request the config charges, and passes the rest on unchanged.
+ * When charging, a payment settles before the app runs, so a bot pays for every GET under the mount, a 404
+ * or an image included. Mount it on the paths that hold the content, such as `app.use("/articles", fairtoll(...))`.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
@@ -33,8 +35,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	}
 	const { config } = result;
 	const { log, facilitator } = options;
-	if (config.ai === "charge" && config.charge.network === "base" && facilitator === undefined) {
-		throw new Error('Invalid fairtoll options: charging on "base" needs a facilitator, because the default one only settles on testnets');
+	if (facilitator !== undefined && (typeof facilitator !== "object" || facilitator === null || typeof facilitator.url !== "string" || facilitator.url === "")) {
+		throw new Error("Invalid fairtoll options: facilitator must be an object with a url");
 	}
 	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();

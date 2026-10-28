@@ -56,7 +56,7 @@ export function parseConfig(input: unknown): ParseResult {
 		fail("payTo", "must be a wallet address: 0x and 40 hex digits");
 	}
 	const network = field("network");
-	if (network !== undefined && !Object.hasOwn(networks, network as string)) {
+	if (network !== undefined && !(typeof network === "string" && Object.hasOwn(networks, network))) {
 		fail("network", `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
 	}
 	if (ai === "charge") {

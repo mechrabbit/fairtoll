@@ -120,7 +120,6 @@ describe("charging AI", () => {
 
 	test.each([
 		["a reader", "/articles/1", { userAgent: chrome }, 200],
-		["an AI crawler's POST", "/articles/1", { method: "POST" }, 201],
 		["an AI crawler's OPTIONS", "/articles/1", { method: "OPTIONS" }, 200],
 		["an AI crawler reading /robots.txt", "/robots.txt", {}, 200],
 	])("lets %s through without charging", async (_name, path, init, status) => {
@@ -146,6 +145,27 @@ describe("charging AI", () => {
 	});
 });
 
+test.each(["POST", "PUT", "DELETE", "PATCH"])("an AI crawler's %s is blocked, so a page served for any method isn't free", async (method) => {
+	const { send, close } = await site(charging);
+	try {
+		const response = await send("/articles/1", { method });
+		expect(response.status).toBe(403);
+		expect(await response.text()).not.toMatch(/Article/);
+	} finally {
+		close();
+	}
+});
+
+test("a paid page is marked private, so a shared cache doesn't replay the payer's receipt", async () => {
+	const { send, close } = await site(charging);
+	try {
+		const payment = await createPayer().sign((await send("/articles/1")).headers.get("payment-required")!);
+		expect((await send("/articles/1", { payment })).headers.get("cache-control")).toBe("private");
+	} finally {
+		close();
+	}
+});
+
 describe("when the facilitator fails", () => {
 	test("if it can't be reached, the page is served and the error reported", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -155,6 +175,28 @@ describe("when the facilitator fails", () => {
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe("Article 1\n");
 			expect(error).toHaveBeenCalledWith(expect.stringMatching(/served without payment/), expect.anything());
+		} finally {
+			close();
+		}
+	});
+
+	test("after a failed start it is left alone for 30 seconds, then used again once it's back", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+		const realFetch = globalThis.fetch;
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+			String(input).startsWith(facilitator.url) ? Promise.reject(new TypeError("fetch failed")) : realFetch(input, init),
+		);
+		const { send, close } = await site(charging);
+		const facilitatorCalls = () => fetchSpy.mock.calls.filter(([input]) => String(input).startsWith(facilitator.url)).length;
+		try {
+			expect((await send("/articles/1")).status).toBe(200);
+			const afterFirst = facilitatorCalls();
+			expect((await send("/articles/1")).status).toBe(200);
+			expect(facilitatorCalls()).toBe(afterFirst);
+			fetchSpy.mockImplementation(realFetch);
+			now.mockReturnValue(1_000_000 + 30_000);
+			expect((await send("/articles/1")).status).toBe(402);
 		} finally {
 			close();
 		}
@@ -195,7 +237,15 @@ describe("when the facilitator fails", () => {
 
 describe("setting up charging", () => {
 	test('charging on "base" without a facilitator throws at startup', () => {
-		expect(() => fairtoll({ ...charging, network: "base" })).toThrow(/needs a facilitator/);
+		expect(() => fairtoll({ ...charging, network: "base" })).toThrow(/needs a facilitator URL/);
+	});
+
+	test.each([
+		["a string", "https://facilitator.example"],
+		["an object without a url", {}],
+		["an empty url", { url: "" }],
+	])("a facilitator given as %s throws at startup", (_name, facilitator) => {
+		expect(() => fairtoll(charging, { facilitator: facilitator as never })).toThrow(/facilitator must be an object with a url/);
 	});
 
 	test("an invalid charge config throws at startup, naming the field", () => {

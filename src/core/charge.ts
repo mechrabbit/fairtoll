@@ -35,12 +35,18 @@ export type Charger = (request: Request, method: string, path: string) => Promis
 /** Long enough for a Base transaction to land, short enough that a stuck facilitator doesn't hold the page for long. */
 const facilitatorTimeoutMs = 10_000;
 
+/** How long after a failed start the facilitator is left alone, so an outage doesn't hold every bot's page for the timeout. */
+const retryStartAfterMs = 30_000;
+
 /**
  * Makes the charger for a config. It asks the facilitator what it supports on the first charged request,
  * not here, because a Worker can't make requests at startup. `facilitator` defaults to x402.org's, which
- * only settles on testnets.
+ * only settles on testnets, so charging on "base" throws without a facilitator URL.
  */
 export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {}): Charger {
+	if (charge.network === "base" && !facilitator.url) {
+		throw new Error('charging on "base" needs a facilitator URL, because the default facilitator only settles on testnets');
+	}
 	const client = reportingUnreachable(new HTTPFacilitatorClient({ timeoutMs: facilitatorTimeoutMs, ...facilitator }));
 	const server = new x402HTTPResourceServer(new x402ResourceServer(client).register(networks[charge.network], new ExactEvmScheme()), {
 		// Fairtoll has already decided this request is charged, so x402's own route table charges every path.
@@ -56,11 +62,14 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 		},
 	});
 	let ready: Promise<void> | undefined;
+	let failedAt = -Infinity;
 
 	return async (request, method, path) => {
-		// A failed start is tried again on the next request, so a facilitator that comes back is used again.
+		// A failed start is tried again after a while, so a facilitator that comes back is used again.
+		if (Date.now() - failedAt < retryStartAfterMs) throw new Error("the facilitator failed to start in the last 30 seconds");
 		ready ??= server.initialize().catch((error: unknown) => {
 			ready = undefined;
+			failedAt = Date.now();
 			throw error;
 		});
 		await ready;
@@ -80,7 +89,8 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 		if (result.type === "payment-error") return respond(result.response);
 		if (result.type === "no-payment-required") throw new Error("x402 found no route for a charged request");
 		const settled = await server.processSettlement(result.paymentPayload, result.paymentRequirements, result.declaredExtensions, { request: context }, undefined, result.beforeHandlerSettlement);
-		return settled.success ? { kind: "paid", headers: settled.headers } : respond(settled.response);
+		// The receipt names the payer, so a shared cache must not replay it to other visitors.
+		return settled.success ? { kind: "paid", headers: { ...settled.headers, "Cache-Control": "private" } } : respond(settled.response);
 	};
 }
 

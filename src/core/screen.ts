@@ -7,13 +7,15 @@ export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | {
 const allow: Action = { kind: "allow" };
 
 /**
- * Only GET and HEAD are charged, and a HEAD only ever gets the price. Other methods are let through: an
- * OPTIONS answered with a 402 would break every cross-origin request to the page.
+ * Only GET and HEAD are charged, and a HEAD only ever gets the price. OPTIONS is let through, because a 402
+ * there would break every cross-origin request to the page. Any other method is blocked, because many apps
+ * serve the page whatever the method, and a payment settled before a POST runs would pay for a form.
  */
 export function decide(config: Config, cls: RequestClass, method: string): Action {
 	if (cls === "human" || config.ai === "allow") return allow;
 	if (config.ai === "block") return { kind: "block" };
-	return method === "GET" || method === "HEAD" ? { kind: "charge" } : allow;
+	if (method === "GET" || method === "HEAD") return { kind: "charge" };
+	return method === "OPTIONS" ? allow : { kind: "block" };
 }
 
 export function allowsEverything(config: Config): boolean {

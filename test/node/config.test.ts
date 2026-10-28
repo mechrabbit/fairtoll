@@ -45,6 +45,7 @@ describe("parseConfig", () => {
 		["a price with a dollar sign", { ...charging, price: "$0.002" }, ["price"]],
 		["a wallet that isn't an address", { ...charging, payTo: "my-wallet.eth" }, ["payTo"]],
 		["a network Fairtoll doesn't charge on", { ...charging, network: "solana" }, ["network"]],
+		["a network inside an array, which would pass as a key", { ...charging, network: ["base"] }, ["network"]],
 		["a bad price even when not charging", { ai: "block", price: "free" }, ["price"]],
 		["an ai that isn't a string", { ai: true }, ["ai"]],
 	])("rejects %s, naming the field", (_, input, fields) => {
