@@ -1,5 +1,5 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
-import { classify, decide, observe, parseConfig, type EventSink } from "../core/index.js";
+import { observe, parseConfig, type EventSink } from "../core/index.js";
 
 const origin = "http://localhost";
 
@@ -26,13 +26,12 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	const { log } = options;
 	// Observing has no other output yet, so with nothing to log there is nothing to run.
 	if (log === undefined) return (_req, _res, next) => next();
-	const steps = { classify, decide, log };
 
 	// The log is called before the app runs. An async log finishes in the background, so only its
 	// synchronous part adds a wait.
 	return (req, _res, next) => {
 		try {
-			void observe(toWebRequest(req), steps);
+			void observe(toWebRequest(req), log);
 		} catch (error) {
 			console.error("fairtoll: could not read the request, so it was passed through unobserved:", error);
 		}

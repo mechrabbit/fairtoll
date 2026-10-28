@@ -12,10 +12,6 @@
 		"./express": {
 			"types": "./dist/express/index.d.ts",
 			"default": "./dist/express/index.js"
-		},
-		"./worker": {
-			"types": "./dist/worker/index.d.ts",
-			"default": "./dist/worker/index.js"
 		}
 	},
 	"files": [

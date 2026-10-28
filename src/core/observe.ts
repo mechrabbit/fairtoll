@@ -1,12 +1,5 @@
-import type { Classification } from "./classify.js";
+import { classify } from "./classify.js";
 import type { RequestClass } from "./types.js";
-
-export type Action = { readonly kind: "allow" };
-
-/** With no rules to match, every request is allowed. */
-export function decide(): Action {
-	return { kind: "allow" };
-}
 
 /**
  * One line of the event log. `fairtoll` picks the line out of an app's other log lines, and is the
@@ -20,29 +13,23 @@ export interface DecisionEvent {
 	readonly path: string;
 	readonly class: RequestClass;
 	readonly reason: string;
-	readonly action: Action["kind"];
+	/** With no rules to match yet, every request is allowed. */
+	readonly action: "allow";
 }
 
 export type EventSink = (event: DecisionEvent) => void | Promise<void>;
 
-export interface Steps {
-	readonly classify: (request: Request) => Classification;
-	readonly decide: () => Action;
-	readonly log: EventSink;
-}
-
 /**
- * Classifies, decides, and logs one request. A human request isn't logged, because that would add a
- * line to the app's logs for every page view. It never throws: if a step fails, it reports the error
- * and returns, so the adapter serves the page as if Fairtoll weren't there.
+ * Classifies and logs one request. A human request isn't logged, because that would add a line to the
+ * app's logs for every page view. It never throws: if a step fails, it reports the error and returns,
+ * so the adapter serves the page as if Fairtoll weren't there.
  */
-export async function observe(request: Request, steps: Steps): Promise<void> {
+export async function observe(request: Request, log: EventSink): Promise<void> {
 	try {
 		const time = new Date().toISOString();
-		const { class: cls, reason } = steps.classify(request);
-		const action = steps.decide();
+		const { class: cls, reason } = classify(request);
 		if (cls === "human") return;
-		await steps.log({ fairtoll: 1, time, path: new URL(request.url).pathname, class: cls, reason, action: action.kind });
+		await log({ fairtoll: 1, time, path: new URL(request.url).pathname, class: cls, reason, action: "allow" });
 	} catch (error) {
 		console.error("fairtoll: observing a request failed, so the request was passed through unobserved:", error);
 	}
