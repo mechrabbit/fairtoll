@@ -82,6 +82,59 @@ describe("fairtoll changes no response", () => {
 	});
 });
 
+describe("blocking AI", () => {
+	const blocking = { ai: "block" };
+
+	test.each([
+		["a GET", get("/articles/2", gptBot)],
+		["a POST, whose body the app never sees", post('{"text":"secret-body"}')],
+		["a path the app doesn't serve", get("/missing", gptBot)],
+	])("answers an AI crawler's %s with a 403 before the app sees it", async (_name, raw) => {
+		// The site answers these with 200, 201 or 404, so a 403 with Fairtoll's body means the app never ran.
+		const response = (await send(site(fairtoll(blocking)), raw)).toString();
+		expect(response).toMatch(/^HTTP\/1\.1 403 Forbidden\r\n/);
+		expect(response).toMatch(/\r\nContent-Type: text\/plain; charset=utf-8\r\n/);
+		expect(response).toMatch(/\r\nCache-Control: no-store\r\n/);
+		expect(response).toMatch(/\r\n\r\nThis site does not allow AI bots or agents\.\n$/);
+	});
+
+	test.each([
+		["a human page view", get("/articles/1", chrome)],
+		["Googlebot, which is not an AI crawler", get("/articles/1", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")],
+	])("leaves %s byte for byte the same", async (_name, raw) => {
+		const without = await send(site(), raw);
+		const withBlocking = await send(site(fairtoll(blocking)), raw);
+		expect(without.toString()).toMatch(/^HTTP\/1\.1 200 /);
+		expect(withBlocking.equals(without)).toBe(true);
+	});
+
+	test("lets an AI crawler read /robots.txt", async () => {
+		const app = express();
+		app.use(fairtoll(blocking));
+		app.get("/robots.txt", (_req, res) => res.type("text/plain").send("User-agent: GPTBot\nDisallow: /\n"));
+		const response = (await send(app, get("/robots.txt?x=1", gptBot))).toString();
+		expect(response).toMatch(/^HTTP\/1\.1 200 OK\r\n/);
+		expect(response).toMatch(/\r\n\r\nUser-agent: GPTBot\nDisallow: \/\n$/);
+	});
+
+	test("a blocked request is logged with action block", async () => {
+		const { events, log } = collect();
+		await send(site(fairtoll(blocking, { log })), get("/articles/2", gptBot));
+		expect(events).toEqual([expect.objectContaining({ path: "/articles/2", class: "unverifiedBot", action: "block" })]);
+	});
+
+	test("if the request can't be read, the page serves normally instead of being blocked", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const raw = get("/articles/1", gptBot);
+		const without = await send(site(), raw);
+		vi.spyOn(Headers.prototype, "append").mockImplementation(() => {
+			throw new TypeError("unreadable header");
+		});
+		const withBlocking = await send(site(fairtoll(blocking)), raw);
+		expect(withBlocking.equals(without)).toBe(true);
+	});
+});
+
 describe("the log option", () => {
 	test("without it, nothing is logged anywhere", async () => {
 		const stdout = vi.spyOn(process.stdout, "write");

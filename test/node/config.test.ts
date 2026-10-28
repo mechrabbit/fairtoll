@@ -3,7 +3,16 @@ import { parseConfig } from "../../src/core/index.js";
 
 describe("parseConfig", () => {
 	test("an empty config parses to observe-only", () => {
-		expect(parseConfig({})).toEqual({ ok: true, config: {} });
+		expect(parseConfig({})).toEqual({ ok: true, config: { ai: "allow" } });
+	});
+
+	test("an undefined or null ai, such as from an unset environment variable, takes the default", () => {
+		expect(parseConfig({ ai: undefined })).toEqual({ ok: true, config: { ai: "allow" } });
+		expect(parseConfig({ ai: null })).toEqual({ ok: true, config: { ai: "allow" } });
+	});
+
+	test("ai can block", () => {
+		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
 	});
 
 	test.each([
@@ -15,6 +24,8 @@ describe("parseConfig", () => {
 		["an object that inherits its fields", Object.create({ privateKey: "0xabc" }) as object, ["config"]],
 		["the eventLog field that has been removed", { eventLog: "x.jsonl" }, ["eventLog"]],
 		["a private key", { privateKey: "0xabc" }, ["privateKey"]],
+		["an ai action other than allow or block", { ai: "charge" }, ["ai"]],
+		["an ai that isn't a string", { ai: true }, ["ai"]],
 	])("rejects %s, naming the field", (_, input, fields) => {
 		const result = parseConfig(input);
 		expect(result.ok).toBe(false);

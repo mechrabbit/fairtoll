@@ -23,7 +23,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 ## Objectives
 
 1. **Show publishers their AI traffic first.** The default install only observes. It records which bots and agents visit, how often, and which pages they read. It changes no responses.
-2. **Make every step reversible.** A publisher moves from observing, to blocking unverified bots, to charging on a few paths, to a full policy. Each step is a config change. Turning a step off restores the site exactly.
+2. **Make every step reversible.** A publisher moves from observing, to blocking AI bots and agents, to charging on a few paths, to a full policy. Each step is a config change. Turning a step off restores the site exactly.
 3. **Never break the site.** Fail open. If the package throws, the page serves normally.
 4. **Run on and off Cloudflare from the same config.** A policy written for the Express adapter works unchanged in the Cloudflare Worker adapter.
 5. **Hold no money and no keys.** Payments settle directly to the publisher's wallet. The package never takes custody and never needs a private key.
@@ -35,7 +35,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 
 **On Cloudflare, complement.** Cloudflare already does default blocking, Pay Per Use, and the Monetization Gateway. The Worker adapter adds what Cloudflare doesn't do. It observes before anything is blocked, publishes RSL terms, and serves prices to Cloudflare's origin-controlled pricing. Don't rebuild a Cloudflare feature inside the Worker adapter.
 
-**Off Cloudflare, do the whole job.** The Express adapter classifies requests, applies the policy, blocks, charges through x402, and publishes RSL terms itself.
+**Off Cloudflare, do the whole job.** The Express adapter classifies requests, applies the policy, blocks, charges through x402, and publishes RSL terms itself. Blocking there only covers requests that reach the site, because a cache in front of it, such as a CDN, can answer a bot with a cached page without asking the site. The publisher docs must tell a site behind a cache to block AI bots in the cache too.
 
 **Build on the standards.** Charging uses the official `@x402` packages. Licensing terms follow RSL. Never reimplement payments.
 
@@ -59,7 +59,7 @@ A per-path policy maps each class to one of four actions:
 - Require a license.
 - Charge.
 
-A publisher's rollout moves through four steps: observe, block unverified bots, charge on a few paths, and full policy. Each step is a valid state of the config, not a separate mode of the code.
+A publisher's rollout moves through four steps: observe, block AI bots and agents, charge on a few paths, and full policy. Each step is a valid state of the config, not a separate mode of the code.
 
 Prices come from a pricing hook. The default hook returns the static price from the config. The hosted service can supply a different hook.
 

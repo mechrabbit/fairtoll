@@ -1,8 +1,9 @@
 // Serves a small site for sending real requests to with curl. It has one endpoint for each way a publisher
-// can use Fairtoll, so the same request sent to each shows the difference: /open has no Fairtoll, and
-// /monitor has Fairtoll classifying requests and letting them through. A settings file holds the
-// publisher's other setup, such as logging, for the endpoints that have Fairtoll. Each request prints a
-// line, then any events passed to `log` and anything Fairtoll writes, as they happen.
+// can use Fairtoll, so the same request sent to each shows the difference: /open has no Fairtoll, /monitor
+// has Fairtoll classifying requests and letting them through, and /blocked has Fairtoll refusing AI bots
+// and agents. A settings file holds the publisher's other setup, such as logging, for the endpoints that
+// have Fairtoll. Each request prints a line, then any events passed to `log` and anything Fairtoll writes,
+// as they happen.
 // Usage: npm run demo:serve -- [settings.json], which defaults to demo/settings/default.json
 import express from "express";
 import { readFileSync } from "node:fs";
@@ -46,16 +47,26 @@ app.use((req, res, next) => {
 	res.on("finish", () => console.log(`   response ${res.statusCode}`));
 	next();
 });
+const options = log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {};
+const blockedConfig = { ...config, ai: "block" };
+let blocked;
 try {
-	app.use("/monitor", fairtoll(config, log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {}));
+	app.use("/monitor", fairtoll(config, options));
+	blocked = fairtoll(blockedConfig, options);
+	app.use("/blocked", blocked);
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);
 	process.exit(1);
 }
-const endpoints = "   /open     no Fairtoll\n   /monitor  Fairtoll classifies each request and lets it through";
+const endpoints =
+	"   /open     no Fairtoll\n   /monitor  Fairtoll classifies each request and lets it through\n   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through";
 // Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
-app.use(["/open", "/monitor"], express.text({ type: "*/*" }), (req, res) => {
+app.use(["/open", "/monitor", "/blocked"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
+});
+// The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
+app.get("/robots.txt", blocked, (_req, res) => {
+	res.type("text/plain").send("User-agent: GPTBot\nDisallow: /\n");
 });
 app.use((_req, res) => {
 	res.status(404).send(`Send requests under one of the endpoints:\n${endpoints}\n`);
@@ -68,7 +79,10 @@ app.listen(port, (error) => {
 		process.exit(1);
 	}
 	console.log(`Settings: ${settingsPath}`);
-	console.log(`   ${description}: /monitor runs fairtoll(${JSON.stringify(config)}${log ? ", { log }" : ""})`);
+	console.log(`   ${description}`);
+	const call = (cfg) => `fairtoll(${JSON.stringify(cfg)}${log ? ", { log }" : ""})`;
+	console.log(`   /monitor runs ${call(config)}`);
+	console.log(`   /blocked runs ${call(blockedConfig)}`);
 	console.log(`Listening on http://localhost:${port}`);
 	console.log(endpoints);
 	console.log("Name a visitor with a Demo-Visitor header:");
