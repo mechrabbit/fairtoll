@@ -27,8 +27,6 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	// Observing has no other output yet, so with nothing to log there is nothing to run.
 	if (log === undefined) return (_req, _res, next) => next();
 
-	// The log is called before the app runs. An async log finishes in the background, so only its
-	// synchronous part adds a wait.
 	return (req, _res, next) => {
 		try {
 			void observe(toWebRequest(req), log);
