@@ -63,13 +63,17 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 	});
 	let ready: Promise<void> | undefined;
 	let failedAt = -Infinity;
+	let lastStartError: unknown;
 
 	return async (request, method, path) => {
 		// A failed start is tried again after a while, so a facilitator that comes back is used again.
-		if (Date.now() - failedAt < retryStartAfterMs) throw new Error("the facilitator failed to start in the last 30 seconds");
+		if (Date.now() - failedAt < retryStartAfterMs) {
+			throw new Error(`the facilitator failed to start less than ${retryStartAfterMs / 1000} seconds ago`, { cause: lastStartError });
+		}
 		ready ??= server.initialize().catch((error: unknown) => {
 			ready = undefined;
 			failedAt = Date.now();
+			lastStartError = error;
 			throw error;
 		});
 		await ready;
@@ -91,9 +95,8 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 		if (result.type === "no-payment-required") throw new Error("x402 found no route for a charged request");
 		// The upfront flow has settled by now, and a rejected settle came back above as a payment-error.
 		if (!result.beforeHandlerSettlement) throw new Error("x402 verified a payment without settling it");
-		const receipt = server.createSettlementHeaders(result.beforeHandlerSettlement.result);
-		// The receipt names the payer, so a shared cache must not replay it to other visitors.
-		return { kind: "paid", headers: { ...receipt, "Cache-Control": "private" } };
+		// The receipt names the payer, so x402 marks it private, and a shared cache doesn't replay it to other visitors.
+		return { kind: "paid", headers: server.createCompletedSettlementHeaders(result.beforeHandlerSettlement) };
 	};
 }
 

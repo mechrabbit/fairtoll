@@ -244,6 +244,7 @@ describe("setting up charging", () => {
 		["a string", "https://facilitator.example"],
 		["an object without a url", {}],
 		["an empty url", { url: "" }],
+		["a url without a scheme", { url: "facilitator.example" }],
 	])("a facilitator given as %s throws at startup", (_name, facilitator) => {
 		expect(() => fairtoll(charging, { facilitator: facilitator as never })).toThrow(/facilitator must be an object with a url/);
 	});

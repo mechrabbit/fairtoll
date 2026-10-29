@@ -54,18 +54,19 @@ export function parseConfig(input: unknown): ParseResult {
 		return undefined;
 	};
 
-	const ai = field("ai") === undefined ? ("allow" as const) : check("ai", isOneOf(["allow", "block", "charge"] as const), 'must be "allow", "block" or "charge"');
+	const ai = check("ai", isOneOf(["allow", "block", "charge"] as const), 'must be "allow", "block" or "charge"') ?? "allow";
 	const price = check("price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
-	const payTo = check("payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, with a correct checksum if it mixes upper and lower case");
+	const payTo = check("payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
 	const network = check("network", isOneOf(Object.keys(networks) as Network[]), `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
 	if (ai === "charge") {
-		for (const [name, value] of Object.entries({ price, payTo, network })) {
-			if (value === undefined && field(name) === undefined) fail(name, 'is needed when ai is "charge"');
+		for (const name of ["price", "payTo", "network"]) {
+			if (field(name) === undefined) fail(name, 'is needed when ai is "charge"');
 		}
 	}
 
-	if (errors.length > 0 || ai === undefined) return { ok: false, errors };
+	if (errors.length > 0) return { ok: false, errors };
 	if (ai !== "charge") return { ok: true, config: { ai } };
+	// Never true, since a missing or invalid field has an error by now. It's here so the types narrow.
 	if (price === undefined || payTo === undefined || network === undefined) return { ok: false, errors };
 	return { ok: true, config: { ai, charge: { price, payTo, network } } };
 }
@@ -78,9 +79,12 @@ function isPrice(value: unknown): value is string {
 	return typeof value === "string" && /^\d+(\.\d{1,6})?$/.test(value) && /[1-9]/.test(value);
 }
 
-/** A mixed-case address carries an EIP-55 checksum, so a typo that would send payments to the wrong wallet is caught. */
+/**
+ * An address in one case has no checksum. A mixed-case one carries an EIP-55 checksum, so a typo that would
+ * send payments to the wrong wallet is caught.
+ */
 function isWalletAddress(value: unknown): value is string {
-	return typeof value === "string" && isAddress(value, { strict: true });
+	return typeof value === "string" && (/^0x([0-9a-f]{40}|[0-9A-F]{40})$/.test(value) || isAddress(value, { strict: true }));
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */

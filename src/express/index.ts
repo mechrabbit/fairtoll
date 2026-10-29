@@ -35,7 +35,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	}
 	const { config } = result;
 	const { log, facilitator } = options;
-	if (facilitator !== undefined && (typeof facilitator !== "object" || facilitator === null || typeof facilitator.url !== "string" || facilitator.url === "")) {
+	if (facilitator !== undefined && (typeof facilitator !== "object" || facilitator === null || typeof facilitator.url !== "string" || !URL.canParse(facilitator.url))) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with a url");
 	}
 	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;

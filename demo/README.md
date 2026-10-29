@@ -14,7 +14,7 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/open` | Not at all: no Fairtoll |
 | `/monitor` | Fairtoll classifies each request and lets it through |
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
-| `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, and lets everyone else through |
+| `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, answers their other methods except OPTIONS with a 403, and lets everyone else through |
 
 `/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
 

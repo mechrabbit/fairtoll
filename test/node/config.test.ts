@@ -24,7 +24,8 @@ describe("parseConfig", () => {
 	});
 
 	test("a wallet in one case has no checksum, so it is accepted", () => {
-		expect(parseConfig({ ...charging, payTo: wallet.toLowerCase() }).ok).toBe(true);
+		expect(parseConfig({ ...charging, payTo: `0x${"ab".repeat(20)}` }).ok).toBe(true);
+		expect(parseConfig({ ...charging, payTo: `0x${"AB".repeat(20)}` }).ok).toBe(true);
 	});
 
 	test("the charge fields can stay in the config when ai isn't charge, so switching is one change", () => {
