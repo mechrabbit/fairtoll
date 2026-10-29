@@ -49,6 +49,7 @@ describe("parseConfig", () => {
 		["a negative price", { ...charging, price: "-1" }, ["price"]],
 		["a price with a dollar sign", { ...charging, price: "$0.002" }, ["price"]],
 		["a wallet that isn't an address", { ...charging, payTo: "my-wallet.eth" }, ["payTo"]],
+		["the zero address, a placeholder that can't be paid", { ...charging, payTo: `0x${"0".repeat(40)}` }, ["payTo"]],
 		["a mixed-case wallet whose checksum is wrong, as a typo makes it", { ...charging, payTo: "0x00000000000000000000000000000000000000aA" }, ["payTo"]],
 		["a network Fairtoll doesn't charge on", { ...charging, network: "solana" }, ["network"]],
 		["a network inside an array, which would pass as a key", { ...charging, network: ["base"] }, ["network"]],
