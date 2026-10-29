@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
-import { createCharger, httpAdapter, startOnce, type ChargeOutcome } from "../../src/core/charge.js";
+import { createCharger, httpAdapter, startOnce, withDeadline, type ChargeOutcome } from "../../src/core/charge.js";
 import type { Charge } from "../../src/core/config.js";
 import { createPayer, startFacilitator } from "./facilitator.js";
 
@@ -141,6 +141,23 @@ describe("startOnce", () => {
 		now.mockReturnValue(1_000_000 + 30_000);
 		await expect(start()).resolves.toBeUndefined();
 		expect(initialize).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("withDeadline", () => {
+	test("passes on a promise that settles in time", async () => {
+		await expect(withDeadline(Promise.resolve("ok"), 1_000)).resolves.toBe("ok");
+	});
+
+	test("rejects once the deadline passes, so a facilitator that keeps retrying can't hold a request", async () => {
+		vi.useFakeTimers();
+		try {
+			const late = withDeadline(new Promise(() => {}), 10_000);
+			vi.advanceTimersByTime(10_000);
+			await expect(late).rejects.toThrow(/within 10 seconds/);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
