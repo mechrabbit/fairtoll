@@ -79,6 +79,7 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 			getHeader: (name) => (name.toLowerCase() === "payment-signature" ? payment : (request.headers.get(name) ?? undefined)),
 			getMethod: () => method,
 			getPath: () => path,
+			// The 402 names the resource by its path, because the Host header is client input.
 			getUrl: () => path,
 			// x402 answers a browser with its paywall page, which loads a wallet UI. A bot has no use for it.
 			getAcceptHeader: () => "",
@@ -88,9 +89,11 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 		const result = await server.processHTTPRequest(context);
 		if (result.type === "payment-error") return respond(result.response);
 		if (result.type === "no-payment-required") throw new Error("x402 found no route for a charged request");
-		const settled = await server.processSettlement(result.paymentPayload, result.paymentRequirements, result.declaredExtensions, { request: context }, undefined, result.beforeHandlerSettlement);
+		// The upfront flow has settled by now, and a rejected settle came back above as a payment-error.
+		if (!result.beforeHandlerSettlement) throw new Error("x402 verified a payment without settling it");
+		const receipt = server.createSettlementHeaders(result.beforeHandlerSettlement.result);
 		// The receipt names the payer, so a shared cache must not replay it to other visitors.
-		return settled.success ? { kind: "paid", headers: { ...settled.headers, "Cache-Control": "private" } } : respond(settled.response);
+		return { kind: "paid", headers: { ...receipt, "Cache-Control": "private" } };
 	};
 }
 
@@ -102,9 +105,12 @@ function respond(response: HTTPResponseInstructions): ChargeOutcome {
 
 /**
  * x402 turns any facilitator error into a 402 except a `FacilitatorResponseError`, which it throws, and which
- * covers a timeout. Fetch rejects with a `TypeError` when it can't connect, so that becomes one too. A
- * facilitator that answers with an error status still gets the bot a 402, because a payment crafted to make the
- * facilitator fail must not get the page for free.
+ * covers a timeout and a 200 whose body isn't a valid answer. Fetch rejects with a `TypeError` when it can't
+ * connect, so that becomes one too. A facilitator that answers with an error status still gets the bot a
+ * 402, because a payment crafted to make the facilitator fail must not get the page for free.
+ *
+ * Only `settle` needs this: the upfront flow never calls `verify`, and Fairtoll serves the page for free
+ * whenever starting, which calls `getSupported`, fails.
  */
 function reportingUnreachable(client: FacilitatorClient): FacilitatorClient {
 	const reached = async <T>(call: () => Promise<T>): Promise<T> => {
@@ -116,9 +122,8 @@ function reportingUnreachable(client: FacilitatorClient): FacilitatorClient {
 		}
 	};
 	return {
-		verify: (payload, requirements) => reached(() => client.verify(payload, requirements)),
+		verify: (payload, requirements) => client.verify(payload, requirements),
 		settle: (payload, requirements) => reached(() => client.settle(payload, requirements)),
-		// Fairtoll serves the page for free whenever starting fails, so this needs no translation.
 		getSupported: () => client.getSupported(),
 	};
 }

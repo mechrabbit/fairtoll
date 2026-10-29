@@ -1,7 +1,7 @@
 #!/bin/sh
 # An AI crawler that gets a price, pays it, and reads the page, then tries the same payment again, next to a
-# reader and a crawler reading robots.txt. Starts the demo server, sends each request with curl, and stops the
-# server. Run from the repo root:
+# reader, a crawler posting, and a crawler reading robots.txt. Starts the demo server, sends each request with
+# curl, and stops the server. Run from the repo root:
 #   sh demo/scenarios/charging.sh demo/settings/logging.json
 set -e
 npm run --silent build
@@ -28,8 +28,9 @@ quote=$(mktemp)
 trap 'kill $server 2>/dev/null; rm -f "$quote"' EXIT
 send "GPTBot reads the article without paying" -H 'Demo-Visitor: GPTBot' "$url" | tee "$quote"
 echo "--- GPTBot signs a payment for the price in PAYMENT-REQUIRED with demo/pay.js"
-payment=$(node demo/pay.js "$(tr -d '\r' < "$quote" | sed -n 's/^payment-required: //Ip')")
+payment=$(node demo/pay.js "$(tr -d '\r' < "$quote" | grep -i '^payment-required:' | cut -d' ' -f2-)")
 echo
 send "GPTBot sends the article request again with its payment" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
 send "GPTBot sends the same payment a second time" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
+send "ClaudeBot posts a comment, which is blocked because only GET and HEAD can be paid for" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -d '{"text":"hello"}' "http://localhost:$PORT/charged/comments"
 send "GPTBot reads robots.txt, which is always free" -H 'Demo-Visitor: GPTBot' "http://localhost:$PORT/robots.txt"

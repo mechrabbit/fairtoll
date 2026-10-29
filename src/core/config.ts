@@ -44,30 +44,40 @@ export function parseConfig(input: unknown): ParseResult {
 		.map((name) => ({ field: name, message: "is not a known field" }));
 	const fail = (name: string, message: string) => void errors.push({ field: name, message });
 
-	const ai = field("ai") ?? "allow";
-	if (ai !== "allow" && ai !== "block" && ai !== "charge") fail("ai", 'must be "allow", "block" or "charge"');
+	/** The field's value if it's set and passes `valid`. Otherwise undefined, with an error if it was set. */
+	const check = <T>(name: string, valid: (value: unknown) => value is T, message: string): T | undefined => {
+		const value = field(name);
+		if (value === undefined || valid(value)) return value;
+		fail(name, message);
+		return undefined;
+	};
 
-	const price = field("price");
-	if (price !== undefined && !(typeof price === "string" && /^\d+(\.\d{1,6})?$/.test(price) && /[1-9]/.test(price))) {
-		fail("price", 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
-	}
-	const payTo = field("payTo");
-	if (payTo !== undefined && !(typeof payTo === "string" && /^0x[0-9a-fA-F]{40}$/.test(payTo))) {
-		fail("payTo", "must be a wallet address: 0x and 40 hex digits");
-	}
-	const network = field("network");
-	if (network !== undefined && !(typeof network === "string" && Object.hasOwn(networks, network))) {
-		fail("network", `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
-	}
+	const ai = field("ai") === undefined ? ("allow" as const) : check("ai", isOneOf(["allow", "block", "charge"] as const), 'must be "allow", "block" or "charge"');
+	const price = check("price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
+	const payTo = check("payTo", isAddress, "must be a wallet address: 0x and 40 hex digits");
+	const network = check("network", isOneOf(Object.keys(networks) as Network[]), `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
 	if (ai === "charge") {
 		for (const [name, value] of Object.entries({ price, payTo, network })) {
-			if (value === undefined) fail(name, 'is needed when ai is "charge"');
+			if (value === undefined && field(name) === undefined) fail(name, 'is needed when ai is "charge"');
 		}
 	}
 
-	if (errors.length > 0) return { ok: false, errors };
-	if (ai === "charge") return { ok: true, config: { ai, charge: { price, payTo, network } as Charge } };
-	return { ok: true, config: { ai: ai as "allow" | "block" } };
+	if (errors.length > 0 || ai === undefined) return { ok: false, errors };
+	if (ai !== "charge") return { ok: true, config: { ai } };
+	if (price === undefined || payTo === undefined || network === undefined) return { ok: false, errors };
+	return { ok: true, config: { ai, charge: { price, payTo, network } } };
+}
+
+function isOneOf<T extends string>(values: readonly T[]) {
+	return (value: unknown): value is T => typeof value === "string" && (values as readonly string[]).includes(value);
+}
+
+function isPrice(value: unknown): value is string {
+	return typeof value === "string" && /^\d+(\.\d{1,6})?$/.test(value) && /[1-9]/.test(value);
+}
+
+function isAddress(value: unknown): value is string {
+	return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
