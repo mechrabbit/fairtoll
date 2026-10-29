@@ -1,4 +1,4 @@
-import { isAddress } from "viem";
+import { isAddress } from "viem/utils";
 
 /**
  * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
