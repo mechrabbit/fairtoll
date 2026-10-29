@@ -2,6 +2,7 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
+import { httpAdapter, startOnce } from "../../src/core/charge.js";
 import { fairtoll, type Options } from "../../src/express/index.js";
 import { createPayer, startFacilitator } from "./facilitator.js";
 
@@ -204,28 +205,6 @@ describe("when the facilitator fails", () => {
 		}
 	});
 
-	test("after a failed start it is left alone for 30 seconds, then used again once it's back", async () => {
-		vi.spyOn(console, "error").mockImplementation(() => {});
-		const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-		const realFetch = globalThis.fetch;
-		const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
-			String(input).startsWith(facilitator.url) ? Promise.reject(new TypeError("fetch failed")) : realFetch(input, init),
-		);
-		const { send, close } = await site(charging);
-		const facilitatorCalls = () => fetchSpy.mock.calls.filter(([input]) => String(input).startsWith(facilitator.url)).length;
-		try {
-			expect((await send("/articles/1")).status).toBe(200);
-			const afterFirst = facilitatorCalls();
-			expect((await send("/articles/1")).status).toBe(200);
-			expect(facilitatorCalls()).toBe(afterFirst);
-			fetchSpy.mockImplementation(realFetch);
-			now.mockReturnValue(1_000_000 + 30_000);
-			expect((await send("/articles/1")).status).toBe(402);
-		} finally {
-			close();
-		}
-	});
-
 	test("if it can't be reached while settling, the page is served", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const { send, close } = await site(charging);
@@ -275,5 +254,47 @@ describe("setting up charging", () => {
 
 	test("an invalid charge config throws at startup, naming the field", () => {
 		expect(() => fairtoll({ ...charging, price: "0.0000001" })).toThrow(/price/);
+	});
+});
+
+describe("startOnce", () => {
+	test("starts once and shares the start with every call", async () => {
+		const initialize = vi.fn(() => Promise.resolve());
+		const start = startOnce(initialize);
+		await Promise.all([start(), start()]);
+		await start();
+		expect(initialize).toHaveBeenCalledOnce();
+	});
+
+	test("after a failed start it rejects without trying for 30 seconds, then tries again", async () => {
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+		const down = new Error("down");
+		const initialize = vi.fn((): Promise<void> => Promise.reject(down));
+		const start = startOnce(initialize);
+		await expect(start()).rejects.toBe(down);
+		now.mockReturnValue(1_000_000 + 29_999);
+		await expect(start()).rejects.toMatchObject({ cause: down });
+		expect(initialize).toHaveBeenCalledOnce();
+		initialize.mockImplementation(() => Promise.resolve());
+		now.mockReturnValue(1_000_000 + 30_000);
+		await expect(start()).resolves.toBeUndefined();
+		expect(initialize).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("httpAdapter", () => {
+	const request = new Request("http://localhost/", { headers: { "payment-signature": "paid", "user-agent": gptBot, accept: "text/html" } });
+
+	test("passes the payment on, and names the resource by its path", () => {
+		const adapter = httpAdapter(request, "GET", "/articles/1");
+		expect(adapter.getHeader("PAYMENT-SIGNATURE")).toBe("paid");
+		expect(adapter.getUrl()).toBe("/articles/1");
+		expect(adapter.getUserAgent()).toBe(gptBot);
+	});
+
+	test("hides the payment on a HEAD request, and hides Accept so a bot never gets x402's paywall page", () => {
+		const adapter = httpAdapter(request, "HEAD", "/articles/1");
+		expect(adapter.getHeader("payment-signature")).toBeUndefined();
+		expect(adapter.getAcceptHeader()).toBe("");
 	});
 });

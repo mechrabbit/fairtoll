@@ -30,6 +30,11 @@ export interface ConfigError {
 export type ParseResult = { readonly ok: true; readonly config: Config } | { readonly ok: false; readonly errors: readonly ConfigError[] };
 
 const knownFields = ["ai", "price", "payTo", "network"];
+const chargeFields = ["price", "payTo", "network"];
+
+const isAi = isOneOf(["allow", "block", "charge"] as const);
+const isNetwork = isOneOf(Object.keys(networks) as Network[]);
+const networkMessage = `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`;
 
 /**
  * The charge fields are checked whenever they're set, even when `ai` isn't "charge", so switching `ai`
@@ -39,28 +44,17 @@ export function parseConfig(input: unknown): ParseResult {
 	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ field: "config", message: "must be a plain object" }] };
 	}
-	// An undefined or null field, such as from an unset environment variable, is the same as leaving it out.
-	const field = (name: string) => (Object.hasOwn(input, name) ? input[name] : undefined) ?? undefined;
 	const errors: ConfigError[] = Object.keys(input)
 		.filter((name) => !knownFields.includes(name))
 		.map((name) => ({ field: name, message: "is not a known field" }));
-	const fail = (name: string, message: string) => void errors.push({ field: name, message });
 
-	/** The field's value if it's set and passes `valid`. Otherwise undefined, with an error if it was set. */
-	const check = <T>(name: string, valid: (value: unknown) => value is T, message: string): T | undefined => {
-		const value = field(name);
-		if (value === undefined || valid(value)) return value;
-		fail(name, message);
-		return undefined;
-	};
-
-	const ai = check("ai", isOneOf(["allow", "block", "charge"] as const), 'must be "allow", "block" or "charge"') ?? "allow";
-	const price = check("price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
-	const payTo = check("payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
-	const network = check("network", isOneOf(Object.keys(networks) as Network[]), `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
+	const ai = check(input, errors, "ai", isAi, 'must be "allow", "block" or "charge"') ?? "allow";
+	const price = check(input, errors, "price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
+	const payTo = check(input, errors, "payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
+	const network = check(input, errors, "network", isNetwork, networkMessage);
 	if (ai === "charge") {
-		for (const name of ["price", "payTo", "network"]) {
-			if (field(name) === undefined) fail(name, 'is needed when ai is "charge"');
+		for (const name of chargeFields) {
+			if (field(input, name) === undefined) errors.push({ field: name, message: 'is needed when ai is "charge"' });
 		}
 	}
 
@@ -69,6 +63,19 @@ export function parseConfig(input: unknown): ParseResult {
 	// Never true, since a missing or invalid field has an error by now. It's here so the types narrow.
 	if (price === undefined || payTo === undefined || network === undefined) return { ok: false, errors };
 	return { ok: true, config: { ai, charge: { price, payTo, network } } };
+}
+
+/** An undefined or null field, such as from an unset environment variable, is the same as leaving it out. */
+function field(input: Record<string, unknown>, name: string): unknown {
+	return (Object.hasOwn(input, name) ? input[name] : undefined) ?? undefined;
+}
+
+/** The field's value if it's set and passes `valid`. Otherwise undefined, with an error added if it was set. */
+function check<T>(input: Record<string, unknown>, errors: ConfigError[], name: string, valid: (value: unknown) => value is T, message: string): T | undefined {
+	const value = field(input, name);
+	if (value === undefined || valid(value)) return value;
+	errors.push({ field: name, message });
+	return undefined;
 }
 
 function isOneOf<T extends string>(values: readonly T[]) {

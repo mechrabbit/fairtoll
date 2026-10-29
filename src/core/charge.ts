@@ -6,7 +6,6 @@ import {
 	type FacilitatorClient,
 	type FacilitatorConfig,
 	type HTTPAdapter,
-	type HTTPRequestContext,
 	type HTTPResponseInstructions,
 } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
@@ -35,7 +34,7 @@ export type Charger = (request: Request, method: string, path: string) => Promis
 /** Long enough for a Base transaction to land, short enough that a stuck facilitator doesn't hold the page for long. */
 const facilitatorTimeoutMs = 10_000;
 
-/** How long after a failed start the facilitator is left alone, so an outage doesn't hold every bot's page for the timeout. */
+/** How long after a failed start the facilitator is left alone. */
 const retryStartAfterMs = 30_000;
 
 /**
@@ -48,12 +47,13 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 		throw new Error('charging on "base" needs a facilitator URL, because the default facilitator only settles on testnets');
 	}
 	const client = reportingUnreachable(new HTTPFacilitatorClient({ timeoutMs: facilitatorTimeoutMs, ...facilitator }));
-	const server = new x402HTTPResourceServer(new x402ResourceServer(client).register(networks[charge.network], new ExactEvmScheme()), {
+	const network = networks[charge.network];
+	const server = new x402HTTPResourceServer(new x402ResourceServer(client).register(network, new ExactEvmScheme()), {
 		// Fairtoll has already decided this request is charged, so x402's own route table charges every path.
 		"*": {
 			accepts: {
 				scheme: "exact",
-				network: networks[charge.network],
+				network,
 				payTo: charge.payTo,
 				price: charge.price,
 				// Settle before the page is served, so no byte of it leaves unpaid and the response needn't be held back.
@@ -61,42 +61,56 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 			},
 		},
 	});
-	let ready: Promise<void> | undefined;
-	let failedAt = -Infinity;
-	let lastStartError: unknown;
+	const start = startOnce(() => server.initialize());
 
 	return async (request, method, path) => {
-		// A failed start is tried again after a while, so a facilitator that comes back is used again.
-		if (Date.now() - failedAt < retryStartAfterMs) {
-			throw new Error(`the facilitator failed to start less than ${retryStartAfterMs / 1000} seconds ago`, { cause: lastStartError });
-		}
-		ready ??= server.initialize().catch((error: unknown) => {
-			ready = undefined;
-			failedAt = Date.now();
-			lastStartError = error;
-			throw error;
-		});
-		await ready;
-		// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body.
-		const payment = method === "HEAD" ? undefined : (request.headers.get("payment-signature") ?? undefined);
-		const adapter: HTTPAdapter = {
-			getHeader: (name) => (name.toLowerCase() === "payment-signature" ? payment : (request.headers.get(name) ?? undefined)),
-			getMethod: () => method,
-			getPath: () => path,
-			// The 402 names the resource by its path, because the Host header is client input.
-			getUrl: () => path,
-			// x402 answers a browser with its paywall page, which loads a wallet UI. A bot has no use for it.
-			getAcceptHeader: () => "",
-			getUserAgent: () => request.headers.get("user-agent") ?? "",
-		};
-		const context: HTTPRequestContext = { adapter, path, method };
-		const result = await server.processHTTPRequest(context);
+		await start();
+		const result = await server.processHTTPRequest({ adapter: httpAdapter(request, method, path), path, method });
 		if (result.type === "payment-error") return respond(result.response);
 		if (result.type === "no-payment-required") throw new Error("x402 found no route for a charged request");
 		// The upfront flow has settled by now, and a rejected settle came back above as a payment-error.
 		if (!result.beforeHandlerSettlement) throw new Error("x402 verified a payment without settling it");
 		// The receipt names the payer, so x402 marks it private, and a shared cache doesn't replay it to other visitors.
 		return { kind: "paid", headers: server.createCompletedSettlementHeaders(result.beforeHandlerSettlement) };
+	};
+}
+
+/**
+ * Runs `initialize` on the first call and shares its promise with every call after it. A failed start
+ * rejects every call for the next 30 seconds without trying again, so an outage doesn't hold every bot's
+ * page for the timeout, and is then tried again, so a facilitator that comes back is used again.
+ */
+export function startOnce(initialize: () => Promise<void>): () => Promise<void> {
+	let ready: Promise<void> | undefined;
+	let failedAt = -Infinity;
+	let lastError: unknown;
+	return () => {
+		if (Date.now() - failedAt < retryStartAfterMs) {
+			return Promise.reject(new Error(`the facilitator failed to start less than ${retryStartAfterMs / 1000} seconds ago`, { cause: lastError }));
+		}
+		ready ??= initialize().catch((error: unknown) => {
+			ready = undefined;
+			failedAt = Date.now();
+			lastError = error;
+			throw error;
+		});
+		return ready;
+	};
+}
+
+/** What x402 reads from a request. `method` and `path` are what the app routes the request by. */
+export function httpAdapter(request: Request, method: string, path: string): HTTPAdapter {
+	// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body.
+	const payment = method === "HEAD" ? undefined : (request.headers.get("payment-signature") ?? undefined);
+	return {
+		getHeader: (name) => (name.toLowerCase() === "payment-signature" ? payment : (request.headers.get(name) ?? undefined)),
+		getMethod: () => method,
+		getPath: () => path,
+		// The 402 names the resource by its path, because the Host header is client input.
+		getUrl: () => path,
+		// x402 answers a browser with its paywall page, which loads a wallet UI. A bot has no use for it.
+		getAcceptHeader: () => "",
+		getUserAgent: () => request.headers.get("user-agent") ?? "",
 	};
 }
 
@@ -116,17 +130,18 @@ function respond(response: HTTPResponseInstructions): ChargeOutcome {
  * whenever starting, which calls `getSupported`, fails.
  */
 function reportingUnreachable(client: FacilitatorClient): FacilitatorClient {
-	const reached = async <T>(call: () => Promise<T>): Promise<T> => {
-		try {
-			return await call();
-		} catch (error) {
-			if (error instanceof TypeError) throw new FacilitatorResponseError(`Facilitator could not be reached: ${error.message}`);
-			throw error;
-		}
-	};
 	return {
 		verify: (payload, requirements) => client.verify(payload, requirements),
 		settle: (payload, requirements) => reached(() => client.settle(payload, requirements)),
 		getSupported: () => client.getSupported(),
 	};
+}
+
+async function reached<T>(call: () => Promise<T>): Promise<T> {
+	try {
+		return await call();
+	} catch (error) {
+		if (error instanceof TypeError) throw new FacilitatorResponseError(`Facilitator could not be reached: ${error.message}`);
+		throw error;
+	}
 }
