@@ -163,16 +163,32 @@ describe("when the facilitator fails", () => {
 		}
 	});
 
+	test("if it rejects a payment, the app never runs", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const { send, close } = await site(charging);
+		try {
+			const rejected = await send("/articles/1", { payment: "not-a-payment" });
+			expect(rejected.status).toBe(402);
+			expect(await rejected.text()).not.toMatch(/Article/);
+		} finally {
+			close();
+		}
+	});
 });
 
 describe("setting up charging", () => {
+	test('charging on "base" without a facilitator throws at startup', () => {
+		expect(() => fairtoll({ ...charging, network: "base" })).toThrow(/needs a facilitator URL/);
+	});
+
 	test.each([
 		["a string", "https://facilitator.example"],
 		["an object without a url", {}],
 		["an empty url", { url: "" }],
 		["a url without a scheme", { url: "facilitator.example" }],
+		["a host and port without a scheme", { url: "localhost:8080" }],
 	])("a facilitator given as %s throws at startup", (_name, facilitator) => {
-		expect(() => fairtoll(charging, { facilitator: facilitator as never })).toThrow(/facilitator must be an object with a url/);
+		expect(() => fairtoll(charging, { facilitator: facilitator as never })).toThrow(/facilitator must be an object with an http or https url/);
 	});
 
 	test("an invalid charge config throws at startup, naming the field", () => {

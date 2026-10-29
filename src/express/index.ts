@@ -37,8 +37,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	}
 	const { config } = result;
 	const { log, facilitator } = options;
-	if (facilitator !== undefined && (typeof facilitator !== "object" || facilitator === null || typeof facilitator.url !== "string" || !URL.canParse(facilitator.url))) {
-		throw new Error("Invalid fairtoll options: facilitator must be an object with a url");
+	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
+		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
 	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
@@ -81,6 +81,11 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 		}
 		next();
 	};
+}
+
+/** `URL.canParse` alone accepts "localhost:8080", whose protocol is "localhost:", so the facilitator could never be reached. */
+function isHttpUrl(url: unknown): boolean {
+	return typeof url === "string" && URL.canParse(url) && ["http:", "https:"].includes(new URL(url).protocol);
 }
 
 /**
