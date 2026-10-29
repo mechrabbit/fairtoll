@@ -29,8 +29,8 @@ export interface ConfigError {
 
 export type ParseResult = { readonly ok: true; readonly config: Config } | { readonly ok: false; readonly errors: readonly ConfigError[] };
 
-const knownFields = ["ai", "price", "payTo", "network"];
 const chargeFields = ["price", "payTo", "network"];
+const knownFields = ["ai", ...chargeFields];
 
 const isAi = isOneOf(["allow", "block", "charge"] as const);
 const isNetwork = isOneOf(Object.keys(networks) as Network[]);

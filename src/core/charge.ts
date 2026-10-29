@@ -34,7 +34,7 @@ export type Charger = (request: Request, method: string, path: string) => Promis
 /** Long enough for a Base transaction to land, short enough that a stuck facilitator doesn't hold the page for long. */
 const facilitatorTimeoutMs = 10_000;
 
-/** How long after a failed start the facilitator is left alone. */
+/** How long after a failed start the facilitator is left alone, so an outage doesn't hold every bot's page for the timeout. */
 const retryStartAfterMs = 30_000;
 
 /**
@@ -77,16 +77,16 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 
 /**
  * Runs `initialize` on the first call and shares its promise with every call after it. A failed start
- * rejects every call for the next 30 seconds without trying again, so an outage doesn't hold every bot's
- * page for the timeout, and is then tried again, so a facilitator that comes back is used again.
+ * rejects every call for `retryStartAfterMs` without trying again, and is then tried again, so a
+ * facilitator that comes back is used again.
  */
 export function startOnce(initialize: () => Promise<void>): () => Promise<void> {
 	let ready: Promise<void> | undefined;
 	let failedAt = -Infinity;
 	let lastError: unknown;
-	return () => {
+	return async () => {
 		if (Date.now() - failedAt < retryStartAfterMs) {
-			return Promise.reject(new Error(`the facilitator failed to start less than ${retryStartAfterMs / 1000} seconds ago`, { cause: lastError }));
+			throw new Error(`the facilitator failed to start less than ${retryStartAfterMs / 1000} seconds ago`, { cause: lastError });
 		}
 		ready ??= initialize().catch((error: unknown) => {
 			ready = undefined;
@@ -94,7 +94,7 @@ export function startOnce(initialize: () => Promise<void>): () => Promise<void> 
 			lastError = error;
 			throw error;
 		});
-		return ready;
+		await ready;
 	};
 }
 

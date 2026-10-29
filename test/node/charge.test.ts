@@ -205,6 +205,28 @@ describe("when the facilitator fails", () => {
 		}
 	});
 
+	test("one start is shared by every request, so after a failed start the facilitator is left alone until the cool-down ends", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+		const realFetch = globalThis.fetch;
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+			String(input).startsWith(facilitator.url) ? Promise.reject(new TypeError("fetch failed")) : realFetch(input, init),
+		);
+		const { send, close } = await site(charging);
+		const facilitatorCalls = () => fetchSpy.mock.calls.filter(([input]) => String(input).startsWith(facilitator.url)).length;
+		try {
+			expect((await send("/articles/1")).status).toBe(200);
+			const afterFirst = facilitatorCalls();
+			expect((await send("/articles/1")).status).toBe(200);
+			expect(facilitatorCalls()).toBe(afterFirst);
+			fetchSpy.mockImplementation(realFetch);
+			now.mockReturnValue(1_000_000 + 30_000);
+			expect((await send("/articles/1")).status).toBe(402);
+		} finally {
+			close();
+		}
+	});
+
 	test("if it can't be reached while settling, the page is served", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const { send, close } = await site(charging);
