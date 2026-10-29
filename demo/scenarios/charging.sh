@@ -22,19 +22,25 @@ send() {
 	echo
 }
 
+# sign <file holding a 402>: the PAYMENT-SIGNATURE for the price in its PAYMENT-REQUIRED header, from demo/pay.js.
+sign() {
+	node demo/pay.js "$(tr -d '\r' < "$1" | grep -i '^payment-required:' | cut -d' ' -f2-)"
+}
+
 url="http://localhost:$PORT/charged/articles/42"
+comments="http://localhost:$PORT/charged/comments"
 send "A reader in Chrome" -H 'Demo-Visitor: Chrome' "$url"
 quote=$(mktemp)
 trap 'kill $server 2>/dev/null; rm -f "$quote"' EXIT
 send "GPTBot reads the article without paying" -H 'Demo-Visitor: GPTBot' "$url" | tee "$quote"
 echo "--- GPTBot signs a payment for the price in PAYMENT-REQUIRED with demo/pay.js"
-payment=$(node demo/pay.js "$(tr -d '\r' < "$quote" | grep -i '^payment-required:' | cut -d' ' -f2-)")
+payment=$(sign "$quote")
 echo
 send "GPTBot sends the article request again with its payment" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
 send "GPTBot sends the same payment a second time" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$url"
-send "ClaudeBot posts a comment without paying, which is charged like a read" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -d '{"text":"hello"}' "http://localhost:$PORT/charged/comments" | tee "$quote"
+send "ClaudeBot posts a comment without paying, which is charged like a read" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -d '{"text":"hello"}' "$comments" | tee "$quote"
 echo "--- ClaudeBot signs a payment for that price with demo/pay.js"
-payment=$(node demo/pay.js "$(tr -d '\r' < "$quote" | grep -i '^payment-required:' | cut -d' ' -f2-)")
+payment=$(sign "$quote")
 echo
-send "ClaudeBot posts the comment again with its payment" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -H "PAYMENT-SIGNATURE: $payment" -d '{"text":"hello"}' "http://localhost:$PORT/charged/comments"
+send "ClaudeBot posts the comment again with its payment" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -H "PAYMENT-SIGNATURE: $payment" -d '{"text":"hello"}' "$comments"
 send "GPTBot reads robots.txt, which is always free" -H 'Demo-Visitor: GPTBot' "http://localhost:$PORT/robots.txt"

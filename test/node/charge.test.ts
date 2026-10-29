@@ -126,7 +126,7 @@ describe("charging AI", () => {
 
 	test.each([
 		["a reader", "/articles/1", { userAgent: chrome }, 200],
-		["an AI crawler's OPTIONS", "/articles/1", { method: "OPTIONS" }, 200],
+		["an AI crawler's OPTIONS", "/comments", { method: "OPTIONS" }, 200],
 		["an AI crawler reading /robots.txt", "/robots.txt", {}, 200],
 	])("lets %s through without charging", async (_name, path, init, status) => {
 		const { send, close } = await site(charging);
@@ -165,7 +165,9 @@ test.each(["POST", "PUT", "DELETE", "PATCH"])("an AI crawler's %s is charged too
 test("a paid POST reaches the app with its body", async () => {
 	const { send, close } = await site(charging);
 	try {
-		const payment = await createPayer().sign((await send("/comments", { method: "POST", body: "hello" })).headers.get("payment-required")!);
+		const unpaid = await send("/comments", { method: "POST", body: "hello" });
+		expect(unpaid.status).toBe(402);
+		const payment = await createPayer().sign(unpaid.headers.get("payment-required")!);
 		const paid = await send("/comments", { method: "POST", body: "hello", payment });
 		expect(paid.status).toBe(201);
 		expect(await paid.text()).toBe("Comment: hello\n");
@@ -186,14 +188,15 @@ test("a paid page is marked private, so a shared cache doesn't replay the payer'
 });
 
 describe("when the facilitator fails", () => {
-	test("if it can't be reached, the page is served and the error reported", async () => {
+	test("if it can't be reached, the request reaches the app and the error is reported", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const { send, close } = await site(charging, { facilitator: { url: "http://localhost:1" } });
 		try {
 			const response = await send("/articles/1");
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe("Article 1\n");
-			expect(error).toHaveBeenCalledWith(expect.stringMatching(/served without payment/), expect.anything());
+			expect(error).toHaveBeenCalledWith(expect.stringMatching(/passed on without payment/), expect.anything());
+			expect((await send("/comments", { method: "POST", body: "hello" })).status).toBe(201);
 		} finally {
 			close();
 		}

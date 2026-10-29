@@ -25,7 +25,7 @@ export type ChargeOutcome =
 
 /**
  * Charges a request through x402. It rejects only when the facilitator can't be reached, so the adapter can
- * serve the page for free rather than break the site. A payment the facilitator rejects comes back as a
+ * pass the request on unpaid rather than break the site. A payment the facilitator rejects comes back as a
  * 402, so a reused or forged payment never gets the page.
  *
  * `method` and `path` are what the app routes the request by, as `screen` takes them.
@@ -112,7 +112,7 @@ function respond(response: HTTPResponseInstructions): ChargeOutcome {
  * connect, so that becomes one too. A facilitator that answers with an error status still gets the bot a
  * 402, because a payment crafted to make the facilitator fail must not get the page for free.
  *
- * Only `settle` needs this: the upfront flow never calls `verify`, and Fairtoll serves the page for free
+ * Only `settle` needs this: the upfront flow never calls `verify`, and Fairtoll passes the request on unpaid
  * whenever starting, which calls `getSupported`, fails.
  */
 function reportingUnreachable(client: FacilitatorClient): FacilitatorClient {

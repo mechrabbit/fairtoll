@@ -21,8 +21,8 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
 /**
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
  * request the config charges, and passes the rest on unchanged.
- * When charging, a payment settles before the app runs, so a bot pays for every request under the mount, a 404,
- * an image or a form it posts included. Mount it on the paths that hold the content, such as
+ * When charging, a payment settles before the app runs, so a bot pays for every request under the mount but
+ * OPTIONS, a 404, an image or a form it posts included. Mount it on the paths that hold the content, such as
  * `app.use("/articles", fairtoll(...))`.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
@@ -73,7 +73,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 					next();
 				},
 				(error: unknown) => {
-					console.error("fairtoll: charging a request failed, so the page was served without payment:", error);
+					console.error("fairtoll: charging a request failed, so it was passed on without payment:", error);
 					next();
 				},
 			);
