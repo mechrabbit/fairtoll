@@ -14,8 +14,16 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/open` | Not at all: no Fairtoll |
 | `/monitor` | Fairtoll classifies each request and lets it through |
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
+| `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, charges every method but a CORS preflight, and lets everyone else through |
 
-Charging gets its own endpoint, `/charged`, once Fairtoll can do it.
+`/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
+
+To pay, take the `PAYMENT-REQUIRED` header from a 402 and sign a payment for it with `demo/pay.js`, which prints the `PAYMENT-SIGNATURE` header to send back:
+
+```sh
+node demo/pay.js "<PAYMENT-REQUIRED header value>"
+curl -i -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: <what pay.js printed>" http://localhost:3000/charged/articles/42
+```
 
 The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
 
@@ -36,7 +44,7 @@ To compare settings, send the same requests to a run with each, as in `npm run d
 { "description": "Fairtoll with logging on", "config": {}, "log": true }
 ```
 
-`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it. `log: true` turns on the `log` option. An invalid config stops the server at startup.
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it, and `/charged` sets `ai` to `"charge"`, with the price, wallet and network above unless `config` sets them. `log: true` turns on the `log` option. An invalid config stops the server at startup.
 
 `PORT` sets the port, and the server stops with an error if the port is in use.
 
@@ -65,7 +73,7 @@ A scenario is a shell script in `demo/scenarios/` that builds the package, start
 sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. To write a new scenario, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 
