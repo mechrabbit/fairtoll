@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { parseConfig } from "../../src/core/index.js";
 
-const wallet = "0x00000000000000000000000000000000000000aA";
+const wallet = "0x00000000000000000000000000000000000000AA";
 const charging = { ai: "charge", price: "0.002", payTo: wallet, network: "base-sepolia" };
 
 describe("parseConfig", () => {
@@ -21,6 +21,10 @@ describe("parseConfig", () => {
 	test("ai can charge, with a price, a wallet and a network", () => {
 		expect(parseConfig(charging)).toEqual({ ok: true, config: { ai: "charge", charge: { price: "0.002", payTo: wallet, network: "base-sepolia" } } });
 		expect(parseConfig({ ...charging, price: "12", network: "base" })).toMatchObject({ ok: true, config: { charge: { price: "12", network: "base" } } });
+	});
+
+	test("a wallet in one case has no checksum, so it is accepted", () => {
+		expect(parseConfig({ ...charging, payTo: wallet.toLowerCase() }).ok).toBe(true);
 	});
 
 	test("the charge fields can stay in the config when ai isn't charge, so switching is one change", () => {
@@ -44,6 +48,7 @@ describe("parseConfig", () => {
 		["a negative price", { ...charging, price: "-1" }, ["price"]],
 		["a price with a dollar sign", { ...charging, price: "$0.002" }, ["price"]],
 		["a wallet that isn't an address", { ...charging, payTo: "my-wallet.eth" }, ["payTo"]],
+		["a mixed-case wallet whose checksum is wrong, as a typo makes it", { ...charging, payTo: "0x00000000000000000000000000000000000000aA" }, ["payTo"]],
 		["a network Fairtoll doesn't charge on", { ...charging, network: "solana" }, ["network"]],
 		["a network inside an array, which would pass as a key", { ...charging, network: ["base"] }, ["network"]],
 		["a bad price even when not charging", { ai: "block", price: "free" }, ["price"]],

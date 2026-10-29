@@ -1,3 +1,5 @@
+import { isAddress } from "viem";
+
 /**
  * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
  * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
@@ -54,7 +56,7 @@ export function parseConfig(input: unknown): ParseResult {
 
 	const ai = field("ai") === undefined ? ("allow" as const) : check("ai", isOneOf(["allow", "block", "charge"] as const), 'must be "allow", "block" or "charge"');
 	const price = check("price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
-	const payTo = check("payTo", isAddress, "must be a wallet address: 0x and 40 hex digits");
+	const payTo = check("payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, with a correct checksum if it mixes upper and lower case");
 	const network = check("network", isOneOf(Object.keys(networks) as Network[]), `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`);
 	if (ai === "charge") {
 		for (const [name, value] of Object.entries({ price, payTo, network })) {
@@ -76,8 +78,9 @@ function isPrice(value: unknown): value is string {
 	return typeof value === "string" && /^\d+(\.\d{1,6})?$/.test(value) && /[1-9]/.test(value);
 }
 
-function isAddress(value: unknown): value is string {
-	return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+/** A mixed-case address carries an EIP-55 checksum, so a typo that would send payments to the wrong wallet is caught. */
+function isWalletAddress(value: unknown): value is string {
+	return typeof value === "string" && isAddress(value, { strict: true });
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
