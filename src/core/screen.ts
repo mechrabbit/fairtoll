@@ -7,14 +7,14 @@ export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | {
 const allow: Action = { kind: "allow" };
 
 /**
- * Every method is charged except OPTIONS, which is let through because a 402 there would break every
- * cross-origin request to the page. Many apps serve the page whatever the method, so a free POST would be a
- * way around the price. A HEAD only ever gets the price.
+ * Every request is charged except a CORS preflight, which is let through because a 402 there would break
+ * every cross-origin request to the page. Many apps serve the page whatever the method, so a free POST or
+ * other OPTIONS would be a way around the price. A HEAD only ever gets the price.
  */
-export function decide(config: Config, cls: RequestClass, method: string): Action {
+export function decide(config: Config, cls: RequestClass, preflight: boolean): Action {
 	if (cls === "human" || config.ai === "allow") return allow;
 	if (config.ai === "block") return { kind: "block" };
-	return method === "OPTIONS" ? allow : { kind: "charge" };
+	return preflight ? allow : { kind: "charge" };
 }
 
 export function allowsEverything(config: Config): boolean {
@@ -53,7 +53,9 @@ export function screen(request: Request, method: string, path: string, config: C
 		const { class: cls, reason } = classify(request);
 		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
 		// tell it the site has no rules at all.
-		const action = path === "/robots.txt" ? allow : decide(config, cls, method);
+		// A browser's preflight always names the method it asks about, so an OPTIONS without one is charged.
+		const preflight = method === "OPTIONS" && request.headers.has("access-control-request-method");
+		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight);
 		if (cls !== "human" && log) {
 			// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
 			void (async () => {

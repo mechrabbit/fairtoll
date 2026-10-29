@@ -31,12 +31,13 @@ async function site(config: unknown, options: Options = { facilitator: { url: fa
 	await new Promise((resolve) => server.once("listening", resolve));
 	const port = (server.address() as AddressInfo).port;
 	return {
-		send: (path: string, init: { method?: string; userAgent?: string; payment?: string; body?: string } = {}) =>
+		send: (path: string, init: { method?: string; userAgent?: string; payment?: string; body?: string; preflight?: boolean } = {}) =>
 			fetch(`http://localhost:${port}${path}`, {
 				method: init.method ?? "GET",
 				headers: {
 					"user-agent": init.userAgent ?? gptBot,
 					...(init.payment ? { "payment-signature": init.payment } : {}),
+					...(init.preflight ? { "access-control-request-method": "POST" } : {}),
 					...(init.body ? { "content-type": "text/plain" } : {}),
 				},
 				...(init.body ? { body: init.body } : {}),
@@ -126,7 +127,7 @@ describe("charging AI", () => {
 
 	test.each([
 		["a reader", "/articles/1", { userAgent: chrome }, 200],
-		["an AI crawler's OPTIONS", "/comments", { method: "OPTIONS" }, 200],
+		["an AI crawler's CORS preflight", "/articles/1", { method: "OPTIONS", preflight: true }, 200],
 		["an AI crawler reading /robots.txt", "/robots.txt", {}, 200],
 	])("lets %s through without charging", async (_name, path, init, status) => {
 		const { send, close } = await site(charging);
@@ -151,7 +152,7 @@ describe("charging AI", () => {
 	});
 });
 
-test.each(["POST", "PUT", "DELETE", "PATCH"])("an AI crawler's %s is charged too, so a page served for any method isn't free", async (method) => {
+test.each(["POST", "PUT", "DELETE", "PATCH", "OPTIONS"])("an AI crawler's %s is charged too, so a page served for any method isn't free", async (method) => {
 	const { send, close } = await site(charging);
 	try {
 		const response = await send("/articles/1", { method });

@@ -31,21 +31,19 @@ const charging: Config = { ai: "charge", charge: { price: "0.002", payTo: `0x${"
 
 describe("decide", () => {
 	test("allows every class by default", () => {
-		for (const cls of requestClasses) expect(decide(allowing, cls, "GET")).toEqual({ kind: "allow" });
+		for (const cls of requestClasses) expect(decide(allowing, cls, false)).toEqual({ kind: "allow" });
 	});
 
-	test("blocking AI blocks every class but human, whatever the method", () => {
-		expect(decide(blocking, "human", "GET")).toEqual({ kind: "allow" });
-		for (const cls of requestClasses.filter((c) => c !== "human")) expect(decide(blocking, cls, "POST")).toEqual({ kind: "block" });
+	test("blocking AI blocks every class but human, preflights included", () => {
+		expect(decide(blocking, "human", false)).toEqual({ kind: "allow" });
+		for (const cls of requestClasses.filter((c) => c !== "human")) expect(decide(blocking, cls, true)).toEqual({ kind: "block" });
 	});
 
-	test("charging AI charges every class but human on every method but OPTIONS", () => {
-		expect(decide(charging, "human", "GET")).toEqual({ kind: "allow" });
+	test("charging AI charges every class but human on every request but a CORS preflight", () => {
+		expect(decide(charging, "human", false)).toEqual({ kind: "allow" });
 		for (const cls of requestClasses.filter((c) => c !== "human")) {
-			expect(decide(charging, cls, "GET")).toEqual({ kind: "charge" });
-			expect(decide(charging, cls, "HEAD")).toEqual({ kind: "charge" });
-			expect(decide(charging, cls, "POST")).toEqual({ kind: "charge" });
-			expect(decide(charging, cls, "OPTIONS")).toEqual({ kind: "allow" });
+			expect(decide(charging, cls, false)).toEqual({ kind: "charge" });
+			expect(decide(charging, cls, true)).toEqual({ kind: "allow" });
 		}
 	});
 
