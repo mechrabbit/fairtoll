@@ -73,7 +73,7 @@ A scenario is a shell script in `demo/scenarios/` that builds the package, start
 sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and another pay to post a comment. To write a new scenario, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 

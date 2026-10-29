@@ -26,6 +26,7 @@ async function site(config: unknown, options: Options = { facilitator: { url: fa
 	app.use(fairtoll(config, options));
 	app.get("/robots.txt", (_req, res) => res.type("text/plain").send("User-agent: *\nAllow: /\n"));
 	app.post("/comments", express.text(), (req, res) => res.status(201).send(`Comment: ${req.body}\n`));
+	app.options("/articles/:id", (_req, res) => res.set("Access-Control-Allow-Methods", "GET, POST").sendStatus(204));
 	app.all("/articles/:id", (req, res) => res.status(req.method === "POST" ? 201 : 200).send(`Article ${req.params.id}\n`));
 	const server = app.listen(0);
 	await new Promise((resolve) => server.once("listening", resolve));
@@ -127,7 +128,7 @@ describe("charging AI", () => {
 
 	test.each([
 		["a reader", "/articles/1", { userAgent: chrome }, 200],
-		["an AI crawler's CORS preflight", "/articles/1", { method: "OPTIONS", preflight: true }, 200],
+		["an AI crawler's CORS preflight", "/articles/1", { method: "OPTIONS", preflight: true }, 204],
 		["an AI crawler reading /robots.txt", "/robots.txt", {}, 200],
 	])("lets %s through without charging", async (_name, path, init, status) => {
 		const { send, close } = await site(charging);
