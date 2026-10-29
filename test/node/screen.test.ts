@@ -39,12 +39,12 @@ describe("decide", () => {
 		for (const cls of requestClasses.filter((c) => c !== "human")) expect(decide(blocking, cls, "POST")).toEqual({ kind: "block" });
 	});
 
-	test("charging AI charges every class but human on GET and HEAD, lets OPTIONS through, and blocks other methods", () => {
+	test("charging AI charges every class but human on every method but OPTIONS", () => {
 		expect(decide(charging, "human", "GET")).toEqual({ kind: "allow" });
 		for (const cls of requestClasses.filter((c) => c !== "human")) {
 			expect(decide(charging, cls, "GET")).toEqual({ kind: "charge" });
 			expect(decide(charging, cls, "HEAD")).toEqual({ kind: "charge" });
-			expect(decide(charging, cls, "POST")).toEqual({ kind: "block" });
+			expect(decide(charging, cls, "POST")).toEqual({ kind: "charge" });
 			expect(decide(charging, cls, "OPTIONS")).toEqual({ kind: "allow" });
 		}
 	});

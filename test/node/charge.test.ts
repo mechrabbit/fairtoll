@@ -25,15 +25,21 @@ async function site(config: unknown, options: Options = { facilitator: { url: fa
 	const app = express();
 	app.use(fairtoll(config, options));
 	app.get("/robots.txt", (_req, res) => res.type("text/plain").send("User-agent: *\nAllow: /\n"));
+	app.post("/comments", express.text(), (req, res) => res.status(201).send(`Comment: ${req.body}\n`));
 	app.all("/articles/:id", (req, res) => res.status(req.method === "POST" ? 201 : 200).send(`Article ${req.params.id}\n`));
 	const server = app.listen(0);
 	await new Promise((resolve) => server.once("listening", resolve));
 	const port = (server.address() as AddressInfo).port;
 	return {
-		send: (path: string, init: { method?: string; userAgent?: string; payment?: string } = {}) =>
+		send: (path: string, init: { method?: string; userAgent?: string; payment?: string; body?: string } = {}) =>
 			fetch(`http://localhost:${port}${path}`, {
 				method: init.method ?? "GET",
-				headers: { "user-agent": init.userAgent ?? gptBot, ...(init.payment ? { "payment-signature": init.payment } : {}) },
+				headers: {
+					"user-agent": init.userAgent ?? gptBot,
+					...(init.payment ? { "payment-signature": init.payment } : {}),
+					...(init.body ? { "content-type": "text/plain" } : {}),
+				},
+				...(init.body ? { body: init.body } : {}),
 			}),
 		close: () => server.close(),
 	};
@@ -145,12 +151,25 @@ describe("charging AI", () => {
 	});
 });
 
-test.each(["POST", "PUT", "DELETE", "PATCH"])("an AI crawler's %s is blocked, so a page served for any method isn't free", async (method) => {
+test.each(["POST", "PUT", "DELETE", "PATCH"])("an AI crawler's %s is charged too, so a page served for any method isn't free", async (method) => {
 	const { send, close } = await site(charging);
 	try {
 		const response = await send("/articles/1", { method });
-		expect(response.status).toBe(403);
+		expect(response.status).toBe(402);
 		expect(await response.text()).not.toMatch(/Article/);
+	} finally {
+		close();
+	}
+});
+
+test("a paid POST reaches the app with its body", async () => {
+	const { send, close } = await site(charging);
+	try {
+		const payment = await createPayer().sign((await send("/comments", { method: "POST", body: "hello" })).headers.get("payment-required")!);
+		const paid = await send("/comments", { method: "POST", body: "hello", payment });
+		expect(paid.status).toBe(201);
+		expect(await paid.text()).toBe("Comment: hello\n");
+		expect(facilitator.settled).toHaveLength(1);
 	} finally {
 		close();
 	}
