@@ -61,7 +61,8 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 			},
 		},
 	});
-	const start = startOnce(() => server.initialize());
+	// x402 retries a rate-limited start, which could hold a bot's request for a minute or more.
+	const start = startOnce(() => withDeadline(server.initialize(), facilitatorTimeoutMs));
 
 	return async (request, method, path) => {
 		await start();
@@ -96,6 +97,15 @@ export function startOnce(initialize: () => Promise<void>): () => Promise<void> 
 		});
 		await ready;
 	};
+}
+
+/** `promise`, or a rejection once `ms` have passed without it settling. */
+export function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(() => reject(new Error(`the facilitator did not answer within ${ms / 1000} seconds`)), ms);
+	});
+	return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
 /** What x402 reads from a request. `method` and `path` are what the app routes the request by. */
