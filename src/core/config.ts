@@ -50,7 +50,7 @@ export function parseConfig(input: unknown): ParseResult {
 
 	const ai = check(input, errors, "ai", isAi, 'must be "allow", "block" or "charge"') ?? "allow";
 	const price = check(input, errors, "price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
-	const payTo = check(input, errors, "payTo", isWalletAddress, "must be a wallet address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
+	const payTo = check(input, errors, "payTo", isWalletAddress, "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
 	const network = check(input, errors, "network", isNetwork, networkMessage);
 	if (ai === "charge") {
 		for (const name of chargeFields) {
@@ -88,10 +88,11 @@ function isPrice(value: unknown): value is string {
 
 /**
  * An address in one case has no checksum. A mixed-case one carries an EIP-55 checksum, so a typo that would
- * send payments to the wrong wallet is caught.
+ * send payments to the wrong wallet is caught. The zero address is a placeholder no payment can reach.
  */
 function isWalletAddress(value: unknown): value is string {
-	return typeof value === "string" && (/^0x([0-9a-f]{40}|[0-9A-F]{40})$/.test(value) || isAddress(value, { strict: true }));
+	if (typeof value !== "string" || /^0x0{40}$/.test(value)) return false;
+	return /^0x([0-9a-f]{40}|[0-9A-F]{40})$/.test(value) || isAddress(value, { strict: true });
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
