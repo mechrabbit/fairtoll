@@ -26,6 +26,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 		throw new Error("Invalid fairtoll options: log must be a function");
 	}
 	const { config } = result;
+	if (config.ai === "charge") throw new Error('Invalid fairtoll config: ai "charge" is not supported by the Express adapter yet');
 	const { log } = options;
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
@@ -42,7 +43,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			next();
 			return;
 		}
-		if (screen(request, path, config, log).kind === "block") {
+		if (screen(request, req.method, path, config, log).kind === "block") {
 			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;

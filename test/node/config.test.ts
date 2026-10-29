@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { parseConfig } from "../../src/core/index.js";
 
+const wallet = "0x00000000000000000000000000000000000000AA";
+const charging = { ai: "charge", price: "0.002", payTo: wallet, network: "base-sepolia" };
+
 describe("parseConfig", () => {
 	test("an empty config parses to observe-only", () => {
 		expect(parseConfig({})).toEqual({ ok: true, config: { ai: "allow" } });
@@ -15,6 +18,20 @@ describe("parseConfig", () => {
 		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
 	});
 
+	test("ai can charge, with a price, a wallet and a network", () => {
+		expect(parseConfig(charging)).toEqual({ ok: true, config: { ai: "charge", charge: { price: "0.002", payTo: wallet, network: "base-sepolia" } } });
+		expect(parseConfig({ ...charging, price: "12", network: "base" })).toMatchObject({ ok: true, config: { charge: { price: "12", network: "base" } } });
+	});
+
+	test("a wallet in one case has no checksum, so it is accepted", () => {
+		expect(parseConfig({ ...charging, payTo: `0x${"ab".repeat(20)}` }).ok).toBe(true);
+		expect(parseConfig({ ...charging, payTo: `0x${"AB".repeat(20)}` }).ok).toBe(true);
+	});
+
+	test("the charge fields can stay in the config when ai isn't charge, so switching is one change", () => {
+		expect(parseConfig({ ...charging, ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
+	});
+
 	test.each([
 		["not an object", "{}", ["config"]],
 		["null", null, ["config"]],
@@ -24,7 +41,18 @@ describe("parseConfig", () => {
 		["an object that inherits its fields", Object.create({ privateKey: "0xabc" }) as object, ["config"]],
 		["the eventLog field that has been removed", { eventLog: "x.jsonl" }, ["eventLog"]],
 		["a private key", { privateKey: "0xabc" }, ["privateKey"]],
-		["an ai action other than allow or block", { ai: "charge" }, ["ai"]],
+		["an ai action Fairtoll doesn't have", { ai: "license" }, ["ai"]],
+		["charging without a price, wallet or network", { ai: "charge" }, ["price", "payTo", "network"]],
+		["a price as a number, which can't hold an exact amount", { ...charging, price: 0.002 }, ["price"]],
+		["a price with more than 6 decimals, which x402 would round down", { ...charging, price: "0.0000001" }, ["price"]],
+		["a zero price", { ...charging, price: "0.000" }, ["price"]],
+		["a negative price", { ...charging, price: "-1" }, ["price"]],
+		["a price with a dollar sign", { ...charging, price: "$0.002" }, ["price"]],
+		["a wallet that isn't an address", { ...charging, payTo: "my-wallet.eth" }, ["payTo"]],
+		["a mixed-case wallet whose checksum is wrong, as a typo makes it", { ...charging, payTo: "0x00000000000000000000000000000000000000aA" }, ["payTo"]],
+		["a network Fairtoll doesn't charge on", { ...charging, network: "solana" }, ["network"]],
+		["a network inside an array, which would pass as a key", { ...charging, network: ["base"] }, ["network"]],
+		["a bad price even when not charging", { ai: "block", price: "free" }, ["price"]],
 		["an ai that isn't a string", { ai: true }, ["ai"]],
 	])("rejects %s, naming the field", (_, input, fields) => {
 		const result = parseConfig(input);

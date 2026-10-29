@@ -226,3 +226,7 @@ test("if the log throws, the page still serves normally and the error is reporte
 test("an invalid config throws at startup, naming the field", () => {
 	expect(() => fairtoll({ eventLog: "x.jsonl" })).toThrow(/eventLog/);
 });
+
+test("a charge config throws at startup until the adapter can charge", () => {
+	expect(() => fairtoll({ ai: "charge", price: "0.002", payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" })).toThrow(/not supported/);
+});
