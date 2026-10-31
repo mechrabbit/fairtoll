@@ -49,19 +49,47 @@ app.use((req, res, next) => {
 });
 const options = log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {};
 const blockedConfig = { ...config, ai: "block" };
+const chargedConfig = { price: "0.002", payTo: "0x000000000000000000000000000000000000dEaD", network: "base-sepolia", ...config, ai: "charge" };
+// /charged settles through the stand-in facilitator below, on this same server, so its calls print here too.
+const chargedOptions = { ...options, facilitator: { url: `http://localhost:${port}/facilitator` } };
 let blocked;
 try {
 	app.use("/monitor", fairtoll(config, options));
 	blocked = fairtoll(blockedConfig, options);
 	app.use("/blocked", blocked);
+	app.use("/charged", fairtoll(chargedConfig, chargedOptions));
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);
 	process.exit(1);
 }
-const endpoints =
-	"   /open     no Fairtoll\n   /monitor  Fairtoll classifies each request and lets it through\n   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through";
+
+// A stand-in for an x402 facilitator such as x402.org's. It settles a payment that names the price and wallet
+// the 402 asked for, and rejects a payment it has already settled. It checks no signature and moves no money.
+const settledNonces = new Set();
+app.get("/facilitator/supported", (_req, res) => {
+	res.json({ kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:84532" }], extensions: [], signers: {} });
+});
+app.post("/facilitator/settle", express.json(), (req, res) => {
+	const { paymentPayload, paymentRequirements } = req.body;
+	const { from, to, value, nonce } = paymentPayload.payload.authorization;
+	const network = paymentRequirements.network;
+	let errorReason;
+	if (to.toLowerCase() !== paymentRequirements.payTo.toLowerCase() || value !== paymentRequirements.amount) errorReason = "wrong_price_or_wallet";
+	else if (settledNonces.has(nonce)) errorReason = "payment_already_used";
+	console.log(`   facilitator ${errorReason ? `rejects: ${errorReason}` : `settles ${value} from ${from}`}`);
+	if (errorReason) return res.json({ success: false, errorReason, transaction: "", network, payer: from });
+	settledNonces.add(nonce);
+	res.json({ success: true, transaction: `0xdemo${settledNonces.size}`, network, payer: from });
+});
+
+const endpoints = [
+	"   /open     no Fairtoll",
+	"   /monitor  Fairtoll classifies each request and lets it through",
+	"   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through",
+	"   /charged  Fairtoll answers AI bots and agents with a 402 and a price until they pay, and lets everyone else through",
+].join("\n");
 // Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
-app.use(["/open", "/monitor", "/blocked"], express.text({ type: "*/*" }), (req, res) => {
+app.use(["/open", "/monitor", "/blocked", "/charged"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
 // The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
@@ -83,6 +111,7 @@ app.listen(port, (error) => {
 	const call = (cfg) => `fairtoll(${JSON.stringify(cfg)}${log ? ", { log }" : ""})`;
 	console.log(`   /monitor runs ${call(config)}`);
 	console.log(`   /blocked runs ${call(blockedConfig)}`);
+	console.log(`   /charged runs ${call(chargedConfig)}, settling through the stand-in facilitator at /facilitator`);
 	console.log(`Listening on http://localhost:${port}`);
 	console.log(endpoints);
 	console.log("Name a visitor with a Demo-Visitor header:");
