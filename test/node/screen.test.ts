@@ -112,12 +112,17 @@ describe("screen", () => {
 		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge", charge });
 	});
 
-	test("blocks an AI request whose path has a .. segment when there are rules, and only then", () => {
+	test("blocks an AI request whose path has a .. segment when a rule matches it as sent or resolved", () => {
 		const config: Config = { ai: "allow", rules: [{ path: "/premium/*", ai: "charge", charge }] };
+		// As sent, under /premium. Resolved, /x.
 		expect(decide(config, "unverifiedBot", false, "/premium/a/../../x")).toEqual({ kind: "block" });
 		expect(decide(config, "unverifiedBot", true, "/premium/a/%2e%2e/%2e%2e/x")).toEqual({ kind: "block" });
+		// As sent, under /x. Resolved, under /premium.
+		expect(decide(config, "unverifiedBot", false, "/x/../premium/a")).toEqual({ kind: "block" });
+		// Neither reading is under a rule, so the top-level ai decides.
+		expect(decide(config, "unverifiedBot", false, "/x/../y")).toEqual({ kind: "allow" });
+		expect(decide({ ...blocking, rules: config.rules }, "unverifiedBot", false, "/x/../y")).toEqual({ kind: "block" });
 		expect(decide(config, "human", false, "/premium/a/../../x")).toEqual({ kind: "allow" });
-		expect(decide(allowing, "unverifiedBot", false, "/premium/a/../../x")).toEqual({ kind: "allow" });
 	});
 
 	test("lets /robots.txt through even when a rule blocks or charges every path", () => {

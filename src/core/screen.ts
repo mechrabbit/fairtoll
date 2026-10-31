@@ -1,6 +1,6 @@
 import { classify } from "./classify.js";
 import type { Charge, Config } from "./config.js";
-import { climbsUp, ruleFor } from "./paths.js";
+import { climbsUp, ruleAsSent, ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
 export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge"; readonly charge: Charge };
@@ -13,15 +13,16 @@ const allow: Action = { kind: "allow" };
  * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
  * answers a preflight with the page still gives the page away.
  *
- * When the config has rules, an AI request whose path has a ".." segment is blocked, preflight or not, because
- * the rules and the app could read it as different pages (see `climbsUp`).
+ * An AI request whose path has a ".." segment is blocked, preflight or not, when a rule matches it either as
+ * sent or resolved. Express's router reads the path as sent and a static file server resolves it, so a rule
+ * that matched only one reading could be skipped by whichever one serves the page.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
-	// Such a path could name a page under one rule for the app and another for the rules, so it gets neither.
-	if (config.rules.length > 0 && climbsUp(path)) return { kind: "block" };
+	const rule = ruleFor(config.rules, path);
+	if (config.rules.length > 0 && climbsUp(path) && (rule ?? ruleAsSent(config.rules, path)) !== undefined) return { kind: "block" };
 	// The path's most specific rule, or the top-level policy when no rule matches.
-	const policy = ruleFor(config.rules, path) ?? config;
+	const policy = rule ?? config;
 	if (policy.ai !== "charge") return policy.ai === "block" ? { kind: "block" } : allow;
 	return preflight ? allow : { kind: "charge", charge: policy.charge };
 }

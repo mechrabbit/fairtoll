@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseConfig, type Config } from "../../src/core/index.js";
-import { canonicalPath, climbsUp, ruleFor } from "../../src/core/paths.js";
+import { canonicalPath, climbsUp, ruleAsSent, ruleFor } from "../../src/core/paths.js";
 import { decide } from "../../src/core/screen.js";
 
 const wallet = `0x${"a".repeat(40)}`;
@@ -159,8 +159,8 @@ describe("rules over generated configs", () => {
 
 			expect(decisions(parsed(removed), paths), `seed ${seed}`).toEqual(decisions(parsed(base), paths));
 			const addedRule = parsed({ rules: [added], payTo: wallet, network: "base-sepolia", price: "0.002" }).rules;
-			// Any rule blocks a path with "..", so a config's first rule changes those paths too.
-			const unmatched = paths.filter((path) => ruleFor(addedRule, path) === undefined && !(before.length === 0 && climbsUp(path)));
+			// A path with ".." is also blocked when the rule matches it as sent.
+			const unmatched = paths.filter((path) => ruleFor(addedRule, path) === undefined && !(climbsUp(path) && ruleAsSent(addedRule, path) !== undefined));
 			expect(decisions(parsed(withRule), unmatched), `seed ${seed}`).toEqual(decisions(parsed(base), unmatched));
 		}
 	});

@@ -238,6 +238,8 @@ describe("charging and blocking on some paths", () => {
 			for (const path of ["/articles/1/..%2f..%2fother", "/articles/1%2f..%2f..%2fother"]) {
 				expect((await send(path)).status, path).toBe(403);
 			}
+			// No rule matches this either way, so it follows the top-level ai and reaches the app.
+			expect((await send("/other/..%2fmore")).status).toBe(404);
 		} finally {
 			close();
 		}

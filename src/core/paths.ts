@@ -6,12 +6,12 @@
  * left as it is.
  */
 export function canonicalPath(path: string): string {
-	const segments: string[] = [];
-	for (const segment of decodedSegments(path)) {
-		if (segment === "..") segments.pop();
-		else if (segment !== "" && segment !== ".") segments.push(segment);
+	const resolved: string[] = [];
+	for (const segment of segments(path)) {
+		if (segment === "..") resolved.pop();
+		else resolved.push(segment);
 	}
-	return `/${segments.join("/")}`;
+	return `/${resolved.join("/")}`;
 }
 
 /**
@@ -20,8 +20,19 @@ export function canonicalPath(path: string): string {
  * the rules never matters, and no two rules can tie, because `parseConfig` rejects two with the same path.
  */
 export function ruleFor<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
-	if (rules.length === 0) return undefined;
-	const page = canonicalPath(path);
+	return rules.length === 0 ? undefined : matchRule(rules, canonicalPath(path));
+}
+
+/**
+ * The rule for a path read the way Express's router reads it, with its ".." segments left in place, so
+ * /premium/a/../../x is under /premium/*. It is otherwise canonical like `ruleFor`'s, because decoding and
+ * ignoring case only ever put a path under more rules.
+ */
+export function ruleAsSent<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
+	return rules.length === 0 ? undefined : matchRule(rules, `/${segments(path).join("/")}`);
+}
+
+function matchRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
 	let best: R | undefined;
 	for (const rule of rules) {
 		if (!rule.path.endsWith("/*")) {
@@ -42,18 +53,15 @@ export function canonicalRulePath(path: string): string {
 	return prefix === "/" ? "/*" : `${prefix}/*`;
 }
 
-/**
- * Whether the path has a ".." segment, written as it is, percent-encoded, or after a backslash. Express routes
- * by the path as sent, but rules match it resolved, so /premium/a/../../free is under /premium for a handler
- * mounted there and under /free for the rules. No browser or crawler sends one, because clients resolve dot
- * segments before sending.
- */
+/** Whether the path has a ".." segment, written as it is, percent-encoded, or after a backslash. */
 export function climbsUp(path: string): boolean {
-	return decodedSegments(path).includes("..");
+	return segments(path).includes("..");
 }
 
-function decodedSegments(path: string): string[] {
-	return path.split("/").map(decodeSegment).join("/").replaceAll("\\", "/").toLowerCase().split("/");
+/** The path's segments, decoded and lowercased, with backslashes as slashes, and without empty or "." segments. */
+function segments(path: string): string[] {
+	const decoded = path.split("/").map(decodeSegment).join("/").replaceAll("\\", "/").toLowerCase();
+	return decoded.split("/").filter((segment) => segment !== "" && segment !== ".");
 }
 
 function decodeSegment(segment: string): string {
