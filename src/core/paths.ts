@@ -23,15 +23,6 @@ export function ruleFor<R extends { readonly path: string }>(rules: readonly R[]
 	return rules.length === 0 ? undefined : matchRule(rules, canonicalPath(path));
 }
 
-/**
- * The rule for a path with its ".." segments left in place, as Express's router reads it, so /premium/a/../../x
- * is under /premium/*. Unlike the router, it decodes the path, so %2f and %5c split segments, and ignores case.
- * That can put a path under a rule the router wouldn't route it to, but never out of one it would.
- */
-export function ruleAsSent<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
-	return rules.length === 0 ? undefined : matchRule(rules, `/${segments(path).join("/")}`);
-}
-
 function matchRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
 	let best: R | undefined;
 	for (const rule of rules) {
@@ -53,7 +44,11 @@ export function canonicalRulePath(path: string): string {
 	return prefix === "/" ? "/*" : `${prefix}/*`;
 }
 
-/** Whether the path has a ".." segment, written as it is, percent-encoded, or after a backslash. */
+/**
+ * Whether the path has a ".." segment, written as it is, percent-encoded, or after a backslash. Each part of an
+ * app can resolve one differently: Express's router not at all, a static file server from the root, and a proxy
+ * or `new URL` from where its handler is mounted. So such a path can name a different page for each.
+ */
 export function climbsUp(path: string): boolean {
 	return segments(path).includes("..");
 }

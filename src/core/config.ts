@@ -13,11 +13,11 @@ import { canonicalRulePath } from "./paths.js";
  * A rule's path is either exact, such as "/pricing", or ends in "/*", such as "/premium/*", which covers /premium
  * and everything under it. "/*" covers every path. Paths match the page the request names, ignoring case, a
  * trailing slash and percent-encoding, so a bot can't reach a rule's page under a path that doesn't match it.
- * An AI request whose path has a ".." segment is blocked if a rule matches the path either as sent or with the
- * ".." resolved, because Express's router and a static file server read it those two ways. When more than one
- * rule matches, the most specific wins: the exact path, then the longest wildcard. That way the order of the
- * rules never matters, and a rule for a section, such as "/premium/free/*" inside "/premium/*", works wherever
- * it is written. Two rules can't have the same path. Rules match the whole path, not the part under where the
+ * When there are rules and they or `ai` block or charge, an AI request whose path has a ".." segment is
+ * blocked, because parts of an app resolve ".." differently and could serve a page the rules didn't match.
+ * When more than one rule matches, the most specific wins: the exact path, then the longest wildcard. That way
+ * the order of the rules never matters, and a rule for a section, such as "/premium/free/*" inside
+ * "/premium/*", works wherever it is written. Two rules can't have the same path. Rules match the whole path, not the part under where the
  * middleware is mounted.
  */
 export type Config = Policy & { readonly rules: readonly Rule[] };
