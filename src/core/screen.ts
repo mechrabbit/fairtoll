@@ -1,17 +1,25 @@
 import { classify } from "./classify.js";
 import type { Config } from "./config.js";
-import { requestClasses, type RequestClass } from "./types.js";
+import type { RequestClass } from "./types.js";
 
-export type Action = { readonly kind: "allow" } | { readonly kind: "block" };
+export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge" };
 
 const allow: Action = { kind: "allow" };
 
-export function decide(config: Config, cls: RequestClass): Action {
-	return cls !== "human" && config.ai === "block" ? { kind: "block" } : allow;
+/**
+ * Every request is charged except a CORS preflight, which is let through because a 402 there would break
+ * every cross-origin request to the page. Many apps serve the page whatever the method, so a free POST or
+ * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
+ * answers a preflight with the page still gives the page away.
+ */
+export function decide(config: Config, cls: RequestClass, preflight: boolean): Action {
+	if (cls === "human" || config.ai === "allow") return allow;
+	if (config.ai === "block") return { kind: "block" };
+	return preflight ? allow : { kind: "charge" };
 }
 
 export function allowsEverything(config: Config): boolean {
-	return requestClasses.every((cls) => decide(config, cls).kind === "allow");
+	return config.ai === "allow";
 }
 
 /**
@@ -37,15 +45,18 @@ export type EventSink = (event: DecisionEvent) => void | Promise<void>;
  * awaited, so it adds no wait before the request is handled. It never throws: if a step fails, it
  * reports the error and allows the request, so the adapter serves the page as if Fairtoll weren't there.
  *
- * `path` is the path the app routes the request by, without the query string. The adapter passes it,
- * because `request.url` resolves dot segments and so can name a different page.
+ * `method` and `path` are what the app routes the request by, with no query string in the path. The adapter
+ * passes them, because a Web Request refuses some methods Express serves, and `request.url` resolves dot
+ * segments and so can name a different page.
  */
-export function screen(request: Request, path: string, config: Config, log?: EventSink): Action {
+export function screen(request: Request, method: string, path: string, config: Config, log?: EventSink): Action {
 	try {
 		const { class: cls, reason } = classify(request);
+		// A browser's preflight always names the method it asks about, so an OPTIONS without one is charged.
+		const preflight = method === "OPTIONS" && request.headers.has("access-control-request-method");
 		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
 		// tell it the site has no rules at all.
-		const action = path === "/robots.txt" ? allow : decide(config, cls);
+		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight);
 		if (cls !== "human" && log) {
 			// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
 			void (async () => {

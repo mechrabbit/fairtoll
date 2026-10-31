@@ -108,6 +108,12 @@ describe("blocking AI", () => {
 		expect(withBlocking.equals(without)).toBe(true);
 	});
 
+	test("charging leaves a human page view byte for byte the same", async () => {
+		const charging = { ai: "charge", price: "0.002", payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" };
+		const raw = get("/articles/1", chrome);
+		expect((await send(site(fairtoll(charging)), raw)).equals(await send(site(), raw))).toBe(true);
+	});
+
 	test("lets an AI crawler read /robots.txt", async () => {
 		const app = express();
 		app.use(fairtoll(blocking));
