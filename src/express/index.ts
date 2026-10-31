@@ -1,6 +1,6 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { allowsEverything, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
+import { allowsEverything, createCharger, parseConfig, screen, type Charge, type Charger, type EventSink, type FacilitatorConfig } from "../core/index.js";
 
 export interface Options {
 	/**
@@ -21,10 +21,10 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
 /**
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
  * request the config charges, and passes the rest on unchanged.
- * When charging, a payment settles before the app runs, so a bot pays for every request under the mount, a 404,
- * an image or a form it posts included. Mount it on the paths that hold the content, such as
- * `app.use("/articles", fairtoll(...))`. Only a CORS preflight is free, so the app must not answer one with
- * the page.
+ * When charging, a payment settles before the app runs, so a bot pays for every request the charge covers, a 404,
+ * an image or a form it posts included. Scope it to the paths that hold the content, by mounting it there, such as
+ * `app.use("/articles", fairtoll(...))`, or with rules, such as `{ path: "/articles/*", ai: "charge" }`. Only a
+ * CORS preflight is free, so the app must not answer one with the page.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
@@ -40,7 +40,11 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
-	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;
+	// One charger per price, made here so a charge that can't work, such as on "base" without a facilitator, throws at startup.
+	const chargers = new Map<Charge, Charger>();
+	for (const policy of [config, ...config.rules]) {
+		if (policy.ai === "charge") chargers.set(policy.charge, createCharger(policy.charge, facilitator));
+	}
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
 	return (req, res, next) => {
@@ -62,7 +66,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;
 		}
-		if (action.kind === "charge" && charge) {
+		const charge = action.kind === "charge" ? chargers.get(action.charge) : undefined;
+		if (charge) {
 			// Express catches anything the outcome's handler throws, because the promise is returned to it.
 			return charge(request, req.method, path).then(
 				(outcome) => {

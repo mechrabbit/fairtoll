@@ -1,8 +1,9 @@
 import { classify } from "./classify.js";
-import type { Config } from "./config.js";
+import type { Charge, Config } from "./config.js";
+import { ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
-export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge" };
+export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge"; readonly charge: Charge };
 
 const allow: Action = { kind: "allow" };
 
@@ -12,14 +13,16 @@ const allow: Action = { kind: "allow" };
  * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
  * answers a preflight with the page still gives the page away.
  */
-export function decide(config: Config, cls: RequestClass, preflight: boolean): Action {
-	if (cls === "human" || config.ai === "allow") return allow;
-	if (config.ai === "block") return { kind: "block" };
-	return preflight ? allow : { kind: "charge" };
+export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
+	if (cls === "human") return allow;
+	// The path's most specific rule, or the top-level policy when no rule matches.
+	const policy = ruleFor(config.rules, path) ?? config;
+	if (policy.ai !== "charge") return policy.ai === "block" ? { kind: "block" } : allow;
+	return preflight ? allow : { kind: "charge", charge: policy.charge };
 }
 
 export function allowsEverything(config: Config): boolean {
-	return config.ai === "allow";
+	return config.ai === "allow" && config.rules.every((rule) => rule.ai === "allow");
 }
 
 /**
@@ -56,7 +59,7 @@ export function screen(request: Request, method: string, path: string, config: C
 		const preflight = method === "OPTIONS" && request.headers.has("access-control-request-method");
 		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
 		// tell it the site has no rules at all.
-		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight);
+		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight, path);
 		if (cls !== "human" && log) {
 			// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
 			void (async () => {

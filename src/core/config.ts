@@ -1,10 +1,30 @@
 import { isAddress } from "viem/utils";
+import { canonicalRulePath } from "./paths.js";
 
 /**
  * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
  * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
+ *
+ * `ai` applies to every path no rule matches. A rule applies its own `ai` to AI requests under its path, such as
+ * `{ path: "/premium/*", ai: "charge", price: "0.01" }`. A rule that charges without a price charges the top-level
+ * price, and every charge goes to the top-level `payTo` on the top-level `network`. Removing a rule puts its paths
+ * back on the top-level `ai`.
+ *
+ * A rule's path is either exact, such as "/pricing", or ends in "/*", such as "/premium/*", which covers /premium
+ * and everything under it. "/*" covers every path. Paths match the page the request names, ignoring case, a
+ * trailing slash, percent-encoding and ".." segments, so a bot can't reach a rule's page under a path that
+ * doesn't match it. When more than one rule matches, the most specific wins: the exact path, then the longest
+ * wildcard. That way the order of the rules never matters, and a rule for a section, such as "/premium/free/*"
+ * inside "/premium/*", works wherever it is written. Two rules can't have the same path. Rules match the whole
+ * path, not the part under where the middleware is mounted.
  */
-export type Config = { readonly ai: "allow" | "block" } | { readonly ai: "charge"; readonly charge: Charge };
+export type Config = Policy & { readonly rules: readonly Rule[] };
+
+/** What happens to AI requests: let through, refused, or charged. */
+export type Policy = { readonly ai: "allow" | "block" } | { readonly ai: "charge"; readonly charge: Charge };
+
+/** A policy for the paths that `path` matches. `path` is in canonical form, which is lowercase. */
+export type Rule = Policy & { readonly path: string };
 
 /** What an AI bot or agent pays for a page, and where the money goes. */
 export interface Charge {
@@ -30,11 +50,14 @@ export interface ConfigError {
 export type ParseResult = { readonly ok: true; readonly config: Config } | { readonly ok: false; readonly errors: readonly ConfigError[] };
 
 const chargeFields = ["price", "payTo", "network"];
-const knownFields = ["ai", ...chargeFields];
+const knownFields = ["ai", ...chargeFields, "rules"];
+const ruleFields = ["path", "ai", "price"];
 
 const isAi = isOneOf(["allow", "block", "charge"] as const);
 const isNetwork = isOneOf(Object.keys(networks) as Network[]);
 const networkMessage = `must be one of ${Object.keys(networks).map((name) => `"${name}"`).join(", ")}`;
+const aiMessage = 'must be "allow", "block" or "charge"';
+const priceMessage = 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"';
 
 /**
  * The charge fields are checked whenever they're set, even when `ai` isn't "charge", so switching `ai`
@@ -44,25 +67,68 @@ export function parseConfig(input: unknown): ParseResult {
 	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ field: "config", message: "must be a plain object" }] };
 	}
-	const errors: ConfigError[] = Object.keys(input)
-		.filter((name) => !knownFields.includes(name))
-		.map((name) => ({ field: name, message: "is not a known field" }));
+	const errors = unknownFields(input, knownFields, "");
 
-	const ai = check(input, errors, "ai", isAi, 'must be "allow", "block" or "charge"') ?? "allow";
-	const price = check(input, errors, "price", isPrice, 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"');
+	const ai = check(input, errors, "ai", isAi, aiMessage) ?? "allow";
+	const price = check(input, errors, "price", isPrice, priceMessage);
 	const payTo = check(input, errors, "payTo", isWalletAddress, "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum");
 	const network = check(input, errors, "network", isNetwork, networkMessage);
+	const rules = parseRules(field(input, "rules"), errors, field(input, "price") !== undefined);
 	if (ai === "charge") {
 		for (const name of chargeFields) {
 			if (field(input, name) === undefined) errors.push({ field: name, message: 'is needed when ai is "charge"' });
 		}
+	} else if (rules.some((rule) => rule.ai === "charge")) {
+		for (const name of ["payTo", "network"]) {
+			if (field(input, name) === undefined) errors.push({ field: name, message: 'is needed when a rule\'s ai is "charge"' });
+		}
 	}
 
 	if (errors.length > 0) return { ok: false, errors };
-	if (ai !== "charge") return { ok: true, config: { ai } };
-	// Never true, since a missing or invalid field has an error by now. It's here so the types narrow.
-	if (price === undefined || payTo === undefined || network === undefined) return { ok: false, errors };
-	return { ok: true, config: { ai, charge: { price, payTo, network } } };
+	// Every charge field a policy uses is set by now, since a missing or invalid one has an error.
+	const policy = (ai: Policy["ai"], rulePrice: string | undefined): Policy =>
+		ai === "charge" ? { ai, charge: { price: (rulePrice ?? price)!, payTo: payTo!, network: network! } } : { ai };
+	return { ok: true, config: { ...policy(ai, undefined), rules: rules.map((rule) => ({ ...policy(rule.ai, rule.price), path: rule.path })) } };
+}
+
+/** A rule as written, once its fields are checked. */
+interface RuleInput {
+	readonly path: string;
+	readonly ai: Policy["ai"];
+	readonly price?: string;
+}
+
+/** The rules that parse, with an error added for each problem. An undefined or null `rules` is no rules. */
+function parseRules(value: unknown, errors: ConfigError[], hasTopPrice: boolean): RuleInput[] {
+	if (value === undefined) return [];
+	if (!Array.isArray(value)) {
+		errors.push({ field: "rules", message: "must be an array of rules" });
+		return [];
+	}
+	const seen = new Map<string, number>();
+	return value.flatMap((item: unknown, index): RuleInput[] => {
+		const at = `rules[${index}]`;
+		if (!isPlainObject(item)) {
+			errors.push({ field: at, message: "must be a plain object" });
+			return [];
+		}
+		errors.push(...unknownFields(item, ruleFields, `${at}.`));
+		const written = check(item, errors, "path", isRulePath, 'must be a path starting with "/", with "*" only as a final "/*", such as "/premium/*"', at);
+		const ai = check(item, errors, "ai", isAi, aiMessage, at);
+		const price = check(item, errors, "price", isPrice, priceMessage, at);
+		for (const name of ["path", "ai"]) {
+			if (field(item, name) === undefined) errors.push({ field: `${at}.${name}`, message: "is needed in every rule" });
+		}
+		if (ai === "charge" && field(item, "price") === undefined && !hasTopPrice) {
+			errors.push({ field: `${at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' });
+		}
+		const path = written === undefined ? undefined : canonicalRulePath(written);
+		const same = path === undefined ? undefined : seen.get(path);
+		if (same !== undefined) errors.push({ field: `${at}.path`, message: `matches the same paths as rules[${same}]` });
+		else if (path !== undefined) seen.set(path, index);
+		if (path === undefined || ai === undefined) return [];
+		return [{ path, ai, ...(price === undefined ? {} : { price }) }];
+	});
 }
 
 /** An undefined or null field, such as from an unset environment variable, is the same as leaving it out. */
@@ -70,12 +136,26 @@ function field(input: Record<string, unknown>, name: string): unknown {
 	return (Object.hasOwn(input, name) ? input[name] : undefined) ?? undefined;
 }
 
-/** The field's value if it's set and passes `valid`. Otherwise undefined, with an error added if it was set. */
-function check<T>(input: Record<string, unknown>, errors: ConfigError[], name: string, valid: (value: unknown) => value is T, message: string): T | undefined {
+/**
+ * The field's value if it's set and passes `valid`. Otherwise undefined, with an error added if it was set.
+ * `at` names the object the field is in, such as "rules[0]", for the error.
+ */
+function check<T>(input: Record<string, unknown>, errors: ConfigError[], name: string, valid: (value: unknown) => value is T, message: string, at?: string): T | undefined {
 	const value = field(input, name);
 	if (value === undefined || valid(value)) return value;
-	errors.push({ field: name, message });
+	errors.push({ field: at === undefined ? name : `${at}.${name}`, message });
 	return undefined;
+}
+
+function unknownFields(input: Record<string, unknown>, known: readonly string[], prefix: string): ConfigError[] {
+	return Object.keys(input)
+		.filter((name) => !known.includes(name))
+		.map((name) => ({ field: `${prefix}${name}`, message: "is not a known field" }));
+}
+
+/** An exact path, or one ending in "/*". A "*" anywhere else would suggest matching Fairtoll doesn't do. */
+function isRulePath(value: unknown): value is string {
+	return typeof value === "string" && /^\/[^*]*$|^\/([^*]*\/)?\*$/.test(value);
 }
 
 function isOneOf<T extends string>(values: readonly T[]) {

@@ -1,7 +1,8 @@
 // Serves a small site for sending real requests to with curl. It has one endpoint for each way a publisher
 // can use Fairtoll, so the same request sent to each shows the difference: /open has no Fairtoll, /monitor
-// has Fairtoll classifying requests and letting them through, and /blocked has Fairtoll refusing AI bots
-// and agents. A settings file holds the publisher's other setup, such as logging, for the endpoints that
+// has Fairtoll classifying requests and letting them through, /blocked has Fairtoll refusing AI bots
+// and agents, /charged has Fairtoll charging them, and /paths has rules that charge and block them only on
+// some paths. A settings file holds the publisher's other setup, such as logging, for the endpoints that
 // have Fairtoll. Each request prints a line, then any events passed to `log` and anything Fairtoll writes,
 // as they happen.
 // Usage: npm run demo:serve -- [settings.json], which defaults to demo/settings/default.json
@@ -50,7 +51,18 @@ app.use((req, res, next) => {
 const options = log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {};
 const blockedConfig = { ...config, ai: "block" };
 const chargedConfig = { price: "0.002", payTo: "0x000000000000000000000000000000000000dEaD", network: "base-sepolia", ...config, ai: "charge" };
-// /charged settles through the stand-in facilitator below, on this same server, so its calls print here too.
+// Rules match the whole path, so they name /paths. The top-level ai, from the settings, decides every other path.
+const pathsConfig = {
+	price: "0.002",
+	payTo: "0x000000000000000000000000000000000000dEaD",
+	network: "base-sepolia",
+	...config,
+	rules: [
+		{ path: "/paths/premium/*", ai: "charge", price: "0.01" },
+		{ path: "/paths/private/*", ai: "block" },
+	],
+};
+// /charged and /paths settle through the stand-in facilitator below, on this same server, so its calls print here too.
 const chargedOptions = { ...options, facilitator: { url: `http://localhost:${port}/facilitator` } };
 let blocked;
 try {
@@ -58,6 +70,7 @@ try {
 	blocked = fairtoll(blockedConfig, options);
 	app.use("/blocked", blocked);
 	app.use("/charged", fairtoll(chargedConfig, chargedOptions));
+	app.use("/paths", fairtoll(pathsConfig, chargedOptions));
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);
 	process.exit(1);
@@ -87,9 +100,10 @@ const endpoints = [
 	"   /monitor  Fairtoll classifies each request and lets it through",
 	"   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through",
 	"   /charged  Fairtoll answers AI bots and agents with a 402 and a price until they pay, and lets everyone else through",
+	"   /paths    Fairtoll charges AI bots and agents under /paths/premium/, blocks them under /paths/private/, and lets the rest through",
 ].join("\n");
 // Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
-app.use(["/open", "/monitor", "/blocked", "/charged"], express.text({ type: "*/*" }), (req, res) => {
+app.use(["/open", "/monitor", "/blocked", "/charged", "/paths"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
 // The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
@@ -112,6 +126,7 @@ app.listen(port, (error) => {
 	console.log(`   /monitor runs ${call(config)}`);
 	console.log(`   /blocked runs ${call(blockedConfig)}`);
 	console.log(`   /charged runs ${call(chargedConfig)}, settling through the stand-in facilitator at /facilitator`);
+	console.log(`   /paths runs ${call(pathsConfig)}, settling through the same facilitator`);
 	console.log(`Listening on http://localhost:${port}`);
 	console.log(endpoints);
 	console.log("Name a visitor with a Demo-Visitor header:");
