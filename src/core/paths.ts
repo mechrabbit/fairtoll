@@ -24,9 +24,9 @@ export function ruleFor<R extends { readonly path: string }>(rules: readonly R[]
 }
 
 /**
- * The rule for a path read the way Express's router reads it, with its ".." segments left in place, so
- * /premium/a/../../x is under /premium/*. It is otherwise canonical like `ruleFor`'s, because decoding and
- * ignoring case only ever put a path under more rules.
+ * The rule for a path with its ".." segments left in place, as Express's router reads it, so /premium/a/../../x
+ * is under /premium/*. Unlike the router, it decodes the path, so %2f and %5c split segments, and ignores case.
+ * That can put a path under a rule the router wouldn't route it to, but never out of one it would.
  */
 export function ruleAsSent<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
 	return rules.length === 0 ? undefined : matchRule(rules, `/${segments(path).join("/")}`);
