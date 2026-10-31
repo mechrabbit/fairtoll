@@ -17,8 +17,8 @@ import { canonicalRulePath } from "./paths.js";
  * blocked, because parts of an app resolve ".." differently and could serve a page the rules didn't match.
  * When more than one rule matches, the most specific wins: the exact path, then the longest wildcard. That way
  * the order of the rules never matters, and a rule for a section, such as "/premium/free/*" inside
- * "/premium/*", works wherever it is written. Two rules can't have the same path. Rules match the whole path, not the part under where the
- * middleware is mounted.
+ * "/premium/*", works wherever it is written. Two rules can't have the same path. Rules match the whole path,
+ * not the part under where the middleware is mounted.
  */
 export type Config = Policy & { readonly rules: readonly Rule[] };
 
