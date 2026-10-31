@@ -15,7 +15,8 @@ const allow: Action = { kind: "allow" };
  *
  * When the config has rules and doesn't allow every path, an AI request whose path has a ".." segment is
  * blocked, preflight or not, because the app could serve it as a page other than the one the rules matched
- * (see `climbsUp`). No browser or crawler sends one, since clients resolve dot segments before sending.
+ * (see `climbsUp`). Browsers and crawlers resolve dot segments before sending, so a real visitor's path almost
+ * never has one.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;

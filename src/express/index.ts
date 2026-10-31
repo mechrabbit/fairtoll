@@ -22,9 +22,11 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
  * request the config charges, and passes the rest on unchanged.
  * When charging, a payment settles before the app runs, so a bot pays for every request the charge covers, a 404,
- * an image or a form it posts included. Scope it to the paths that hold the content, by mounting it there, such as
- * `app.use("/articles", fairtoll(...))`, or with rules, such as `{ path: "/articles/*", ai: "charge" }`. Only a
- * CORS preflight is free, so the app must not answer one with the page.
+ * an image or a form it posts included. Scope it to the paths that hold the content with rules, such as
+ * `{ path: "/articles/*", ai: "charge" }`, and mount it at the root. Mounting it on a path instead, such as
+ * `app.use("/articles", fairtoll(...))`, can be got around when a static file server serves the same files from
+ * the root, because /x/..%2farticles/1 never reaches Fairtoll. Only a CORS preflight is free, so the app must
+ * not answer one with the page.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
