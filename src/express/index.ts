@@ -40,10 +40,14 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
-	// One charger per price, made here so a charge that can't work, such as on "base" without a facilitator, throws at startup.
-	const chargers = new Map<Charge, Charger>();
+	// The chargers are made here so a charge that can't work, such as on "base" without a facilitator, throws at startup.
+	// Keyed by the charge's values, so policies with the same charge share a charger and a lookup can't miss.
+	const chargeKey = (charge: Charge) => `${charge.price} ${charge.payTo} ${charge.network}`;
+	const chargers = new Map<string, Charger>();
 	for (const policy of [config, ...config.rules]) {
-		if (policy.ai === "charge") chargers.set(policy.charge, createCharger(policy.charge, facilitator));
+		if (policy.ai !== "charge") continue;
+		const key = chargeKey(policy.charge);
+		if (!chargers.has(key)) chargers.set(key, createCharger(policy.charge, facilitator));
 	}
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
@@ -66,7 +70,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;
 		}
-		const charge = action.kind === "charge" ? chargers.get(action.charge) : undefined;
+		const charge = action.kind === "charge" ? chargers.get(chargeKey(action.charge)) : undefined;
 		if (charge) {
 			// Express catches anything the outcome's handler throws, because the promise is returned to it.
 			return charge(request, req.method, path).then(

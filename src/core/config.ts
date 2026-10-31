@@ -153,9 +153,12 @@ function unknownFields(input: Record<string, unknown>, known: readonly string[],
 		.map((name) => ({ field: `${prefix}${name}`, message: "is not a known field" }));
 }
 
-/** An exact path, or one ending in "/*". A "*" anywhere else would suggest matching Fairtoll doesn't do. */
+/**
+ * An exact path, or one ending in "/*". A "*" anywhere else would suggest matching Fairtoll doesn't do. A "%2A"
+ * is refused too, because it decodes to a "*" and would turn an exact path into a wildcard.
+ */
 function isRulePath(value: unknown): value is string {
-	return typeof value === "string" && /^\/[^*]*$|^\/([^*]*\/)?\*$/.test(value);
+	return typeof value === "string" && /^\/[^*]*$|^\/([^*]*\/)?\*$/.test(value) && !/%2a/i.test(value);
 }
 
 function isOneOf<T extends string>(values: readonly T[]) {

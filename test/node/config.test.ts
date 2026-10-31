@@ -96,6 +96,7 @@ describe("parseConfig", () => {
 		["a relative rule path", { rules: [{ path: "premium/*", ai: "block" }] }, ["rules[0].path"]],
 		["a wildcard that isn't a final /*", { rules: [{ path: "/premium*", ai: "block" }] }, ["rules[0].path"]],
 		["a wildcard inside a path", { rules: [{ path: "/*/premium", ai: "block" }] }, ["rules[0].path"]],
+		["a percent-encoded * that would decode to a wildcard", { rules: [{ path: "/premium/%2A", ai: "block" }] }, ["rules[0].path"]],
 		["a rule ai Fairtoll doesn't have", { rules: [{ path: "/a", ai: "license" }] }, ["rules[0].ai"]],
 		["a bad rule price", { rules: [{ path: "/a", ai: "block", price: "free" }] }, ["rules[0].price"]],
 		["a rule that charges with no price at all", { payTo: wallet, network: "base-sepolia", rules: [{ path: "/a", ai: "charge" }] }, ["rules[0].price"]],
