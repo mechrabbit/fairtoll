@@ -234,6 +234,10 @@ describe("charging and blocking on some paths", () => {
 			for (const path of ["/ARTICLES/1", "/%61rticles/1", "//articles/1"]) {
 				expect((await send(path)).status, path).toBe(402);
 			}
+			// The app routes these under /articles, while resolving them would put them under /other.
+			for (const path of ["/articles/1/..%2f..%2fother", "/articles/1%2f..%2f..%2fother"]) {
+				expect((await send(path)).status, path).toBe(403);
+			}
 		} finally {
 			close();
 		}

@@ -1,6 +1,6 @@
 import { classify } from "./classify.js";
 import type { Charge, Config } from "./config.js";
-import { ruleFor } from "./paths.js";
+import { climbsUp, ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
 export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge"; readonly charge: Charge };
@@ -12,9 +12,14 @@ const allow: Action = { kind: "allow" };
  * every cross-origin request to the page. Many apps serve the page whatever the method, so a free POST or
  * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
  * answers a preflight with the page still gives the page away.
+ *
+ * When the config has rules, an AI request whose path has a ".." segment is blocked, preflight or not, because
+ * the rules and the app could read it as different pages (see `climbsUp`).
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
+	// Such a path could name a page under one rule for the app and another for the rules, so it gets neither.
+	if (config.rules.length > 0 && climbsUp(path)) return { kind: "block" };
 	// The path's most specific rule, or the top-level policy when no rule matches.
 	const policy = ruleFor(config.rules, path) ?? config;
 	if (policy.ai !== "charge") return policy.ai === "block" ? { kind: "block" } : allow;

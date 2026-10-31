@@ -6,9 +6,8 @@
  * left as it is.
  */
 export function canonicalPath(path: string): string {
-	const decoded = path.split("/").map(decodeSegment).join("/").replaceAll("\\", "/").toLowerCase();
 	const segments: string[] = [];
-	for (const segment of decoded.split("/")) {
+	for (const segment of decodedSegments(path)) {
 		if (segment === "..") segments.pop();
 		else if (segment !== "" && segment !== ".") segments.push(segment);
 	}
@@ -41,6 +40,20 @@ export function canonicalRulePath(path: string): string {
 	if (!path.endsWith("/*")) return canonicalPath(path);
 	const prefix = canonicalPath(path.slice(0, -2));
 	return prefix === "/" ? "/*" : `${prefix}/*`;
+}
+
+/**
+ * Whether the path has a ".." segment, written as it is, percent-encoded, or after a backslash. Express routes
+ * by the path as sent, but rules match it resolved, so /premium/a/../../free is under /premium for a handler
+ * mounted there and under /free for the rules. No browser or crawler sends one, because clients resolve dot
+ * segments before sending.
+ */
+export function climbsUp(path: string): boolean {
+	return decodedSegments(path).includes("..");
+}
+
+function decodedSegments(path: string): string[] {
+	return path.split("/").map(decodeSegment).join("/").replaceAll("\\", "/").toLowerCase().split("/");
 }
 
 function decodeSegment(segment: string): string {

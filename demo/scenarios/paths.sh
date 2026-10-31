@@ -37,6 +37,7 @@ payment=$(sign "$quote")
 echo
 send "GPTBot sends the request again with its payment" -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: $payment" "$site/paths/premium/1"
 send "GPTBot asks for the premium article with its path percent-encoded, which the rule still matches" -H 'Demo-Visitor: GPTBot' "$site/paths/%70remium/1"
+send "GPTBot asks for a path the app routes under premium but that resolves outside it, which is blocked" -H 'Demo-Visitor: GPTBot' "$site/paths/premium/1/..%2f..%2farticles"
 send "GPTBot's CORS preflight for the premium article, which is never charged" -X OPTIONS -H 'Demo-Visitor: GPTBot' -H 'Access-Control-Request-Method: POST' "$site/paths/premium/1"
 send "GPTBot reads a private page, which a rule blocks" -H 'Demo-Visitor: GPTBot' "$site/paths/private/1"
 send "GPTBot reads an article no rule matches, which follows the top-level ai" -H 'Demo-Visitor: GPTBot' "$site/paths/articles/1"

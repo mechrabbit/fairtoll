@@ -112,6 +112,14 @@ describe("screen", () => {
 		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge", charge });
 	});
 
+	test("blocks an AI request whose path has a .. segment when there are rules, and only then", () => {
+		const config: Config = { ai: "allow", rules: [{ path: "/premium/*", ai: "charge", charge }] };
+		expect(decide(config, "unverifiedBot", false, "/premium/a/../../x")).toEqual({ kind: "block" });
+		expect(decide(config, "unverifiedBot", true, "/premium/a/%2e%2e/%2e%2e/x")).toEqual({ kind: "block" });
+		expect(decide(config, "human", false, "/premium/a/../../x")).toEqual({ kind: "allow" });
+		expect(decide(allowing, "unverifiedBot", false, "/premium/a/../../x")).toEqual({ kind: "allow" });
+	});
+
 	test("lets /robots.txt through even when a rule blocks or charges every path", () => {
 		const config: Config = { ai: "allow", rules: [{ path: "/*", ai: "block" }] };
 		expect(screen(request(gptBot), "GET", "/robots.txt", config)).toEqual({ kind: "allow" });
