@@ -4,7 +4,7 @@ import type { Action, Rules } from "./config.js";
  * A request path as rules match it. `key` is "/" and the segments joined by "/", which is how a rule's path
  * is keyed too. A path that is "unreadable" can't be matched against rules safely.
  */
-export type ReadPath = { readonly kind: "read"; readonly key: string; readonly segments: readonly string[] } | { readonly kind: "unreadable" };
+export type ReadPath = { readonly kind: "read"; readonly key: string } | { readonly kind: "unreadable" };
 
 /** A rule's path: "exact" covers only its own path, and "under", written "/premium/*", covers its path and every path below it. */
 export type Pattern = { readonly kind: "exact" | "under"; readonly key: string } | { readonly kind: "invalid"; readonly message: string };
@@ -26,7 +26,7 @@ export function readPath(raw: string): ReadPath {
 	const parts = decoded.toLowerCase().split(/[\\/]/);
 	if (parts.includes("..")) return unreadable;
 	const segments = parts.filter((part) => part !== "" && part !== ".");
-	return { kind: "read", key: pathKey(segments), segments };
+	return { kind: "read", key: pathKey(segments) };
 }
 
 /**
@@ -51,18 +51,20 @@ export function parsePattern(text: string): Pattern {
 }
 
 /**
- * The most specific rule that covers a path: its exact rule, or else the deepest `under` rule among the path
- * and the paths above it. No two rules can tie, because an exact key is unique and the `under` rules covering
- * one path all have different depths, so the order rules are written in never matters.
+ * The most specific rule that covers a path's key: its exact rule, or else the longest `under` rule whose path is
+ * the path or one above it. No two rules can tie, because an exact key is unique and of two `under` rules that
+ * cover one path, one's path is above the other's and so shorter. The order rules are written in never matters.
+ * The work grows with the number of rules, not with the length of the path, which a bot chooses.
  */
-export function ruleFor(rules: Rules, path: { readonly key: string; readonly segments: readonly string[] }): Action | undefined {
-	const exact = rules.exact.get(path.key);
+export function ruleFor(rules: Rules, key: string): Action | undefined {
+	const exact = rules.exact.get(key);
 	if (exact !== undefined) return exact;
-	for (let depth = path.segments.length; depth > 0; depth--) {
-		const under = rules.under.get(pathKey(path.segments.slice(0, depth)));
-		if (under !== undefined) return under;
+	let longest: string | undefined;
+	for (const under of rules.under.keys()) {
+		const covers = key === under || key.startsWith(`${under}/`);
+		if (covers && under.length > (longest?.length ?? 0)) longest = under;
 	}
-	return undefined;
+	return longest === undefined ? undefined : rules.under.get(longest);
 }
 
 /** The one place a key is spelled, so a rule's path and a request path can't be keyed differently. */

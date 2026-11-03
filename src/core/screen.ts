@@ -29,7 +29,7 @@ function actionAt(config: Config, path: string): Action {
 	if (config.rules.exact.size === 0 && config.rules.under.size === 0) return config.ai;
 	const read = readPath(path);
 	if (read.kind === "unreadable") return allowsEverything(config) ? allow : block;
-	return ruleFor(config.rules, read) ?? config.ai;
+	return ruleFor(config.rules, read.key) ?? config.ai;
 }
 
 export function allowsEverything(config: Config): boolean {

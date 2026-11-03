@@ -3,8 +3,8 @@ import { parsePattern, readPath } from "../../src/core/paths.js";
 
 describe("readPath", () => {
 	test("keys a path by its segments, decoded and in lower case", () => {
-		expect(readPath("/Premium//42/")).toEqual({ kind: "read", key: "/premium/42", segments: ["premium", "42"] });
-		expect(readPath("/")).toEqual({ kind: "read", key: "/", segments: [] });
+		expect(readPath("/Premium//42/")).toEqual({ kind: "read", key: "/premium/42" });
+		expect(readPath("/")).toEqual({ kind: "read", key: "/" });
 	});
 
 	test.each([
