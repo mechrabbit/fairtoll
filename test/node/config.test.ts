@@ -102,6 +102,7 @@ describe("parseConfig", () => {
 		["a rule that charges with no price at all", { payTo: wallet, network: "base-sepolia", rules: [{ path: "/a", ai: "charge" }] }, ["rules[0].price"]],
 		["a rule that charges with no wallet or network", { rules: [{ path: "/a", ai: "charge", price: "0.01" }] }, ["payTo", "network"]],
 		["two rules that charge with no wallet or network, which is reported once", { rules: [{ path: "/a", ai: "charge", price: "0.01" }, { path: "/b", ai: "charge", price: "0.01" }] }, ["payTo", "network"]],
+		["rules that charge with no price, wallet or network, each rule in turn", { rules: [{ path: "/a", ai: "charge" }, { path: "/b", ai: "charge" }] }, ["rules[0].price", "payTo", "network", "rules[1].price"]],
 		["charging with no wallet or network, and a rule that charges", { ai: "charge", price: "0.01", rules: [{ path: "/a", ai: "charge" }] }, ["payTo", "network"]],
 		["two rules for the same paths", { rules: [{ path: "/a/*", ai: "block" }, { path: "/A/*", ai: "allow" }] }, ["rules[1].path"]],
 		["an exact rule and its trailing-slash twin", { rules: [{ path: "/a", ai: "block" }, { path: "/a/", ai: "allow" }] }, ["rules[1].path"]],
