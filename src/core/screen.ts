@@ -1,8 +1,6 @@
 import { classify } from "./classify.js";
-import type { Config } from "./config.js";
+import type { Action, Config } from "./config.js";
 import type { RequestClass } from "./types.js";
-
-export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge" };
 
 const allow: Action = { kind: "allow" };
 
@@ -13,13 +11,13 @@ const allow: Action = { kind: "allow" };
  * answers a preflight with the page still gives the page away.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean): Action {
-	if (cls === "human" || config.ai === "allow") return allow;
-	if (config.ai === "block") return { kind: "block" };
-	return preflight ? allow : { kind: "charge" };
+	if (cls === "human") return allow;
+	if (config.ai.kind === "charge" && preflight) return allow;
+	return config.ai;
 }
 
 export function allowsEverything(config: Config): boolean {
-	return config.ai === "allow";
+	return config.ai.kind === "allow";
 }
 
 /**

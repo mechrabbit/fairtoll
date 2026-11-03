@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { classify, type Config } from "../../src/core/index.js";
+import { classify } from "../../src/core/index.js";
 import { allowsEverything, decide, screen, type DecisionEvent, type EventSink } from "../../src/core/screen.js";
 import { requestClasses } from "../../src/core/types.js";
+import { parsed } from "./parsed.js";
 
 const request = (userAgent?: string) =>
 	new Request("https://example.com/articles/1?token=secret", userAgent ? { headers: { "user-agent": userAgent } } : {});
@@ -25,9 +26,11 @@ describe("classify", () => {
 	});
 });
 
-const allowing: Config = { ai: "allow" };
-const blocking: Config = { ai: "block" };
-const charging: Config = { ai: "charge", charge: { price: "0.002", payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" } };
+const wallet = `0x${"a".repeat(40)}`;
+const allowing = parsed({});
+const blocking = parsed({ ai: "block" });
+const charging = parsed({ ai: "charge", price: "0.002", payTo: wallet, network: "base-sepolia" });
+const charge = { kind: "charge", charge: { price: "0.002", payTo: wallet, network: "base-sepolia" } };
 
 describe("decide", () => {
 	test("allows every class by default", () => {
@@ -42,7 +45,7 @@ describe("decide", () => {
 	test("charging AI charges every class but human on every request but a CORS preflight", () => {
 		expect(decide(charging, "human", false)).toEqual({ kind: "allow" });
 		for (const cls of requestClasses.filter((c) => c !== "human")) {
-			expect(decide(charging, cls, false)).toEqual({ kind: "charge" });
+			expect(decide(charging, cls, false)).toEqual(charge);
 			expect(decide(charging, cls, true)).toEqual({ kind: "allow" });
 		}
 	});
@@ -88,13 +91,13 @@ describe("screen", () => {
 
 	test("always lets /robots.txt through when charging, so RSL terms stay readable", () => {
 		expect(screen(request(gptBot), "GET", "/robots.txt", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge" });
+		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual(charge);
 	});
 
 	test("when charging, lets a CORS preflight through and charges any other OPTIONS", () => {
 		const preflight = new Request("https://example.com/", { headers: { "user-agent": gptBot, "access-control-request-method": "POST" } });
 		expect(screen(preflight, "OPTIONS", "/articles/1", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging)).toEqual({ kind: "charge" });
+		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging)).toEqual(charge);
 	});
 
 	test("blocks without a log", () => {

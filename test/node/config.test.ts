@@ -6,21 +6,21 @@ const charging = { ai: "charge", price: "0.002", payTo: wallet, network: "base-s
 
 describe("parseConfig", () => {
 	test("an empty config parses to observe-only", () => {
-		expect(parseConfig({})).toEqual({ ok: true, config: { ai: "allow" } });
+		expect(parseConfig({})).toEqual({ ok: true, config: { ai: { kind: "allow" } } });
 	});
 
 	test("an undefined or null ai, such as from an unset environment variable, takes the default", () => {
-		expect(parseConfig({ ai: undefined })).toEqual({ ok: true, config: { ai: "allow" } });
-		expect(parseConfig({ ai: null })).toEqual({ ok: true, config: { ai: "allow" } });
+		expect(parseConfig({ ai: undefined })).toEqual({ ok: true, config: { ai: { kind: "allow" } } });
+		expect(parseConfig({ ai: null })).toEqual({ ok: true, config: { ai: { kind: "allow" } } });
 	});
 
 	test("ai can block", () => {
-		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
+		expect(parseConfig({ ai: "block" })).toEqual({ ok: true, config: { ai: { kind: "block" } } });
 	});
 
 	test("ai can charge, with a price, a wallet and a network", () => {
-		expect(parseConfig(charging)).toEqual({ ok: true, config: { ai: "charge", charge: { price: "0.002", payTo: wallet, network: "base-sepolia" } } });
-		expect(parseConfig({ ...charging, price: "12", network: "base" })).toMatchObject({ ok: true, config: { charge: { price: "12", network: "base" } } });
+		expect(parseConfig(charging)).toEqual({ ok: true, config: { ai: { kind: "charge", charge: { price: "0.002", payTo: wallet, network: "base-sepolia" } } } });
+		expect(parseConfig({ ...charging, price: "12", network: "base" })).toMatchObject({ ok: true, config: { ai: { charge: { price: "12", network: "base" } } } });
 	});
 
 	test("a wallet in one case has no checksum, so it is accepted", () => {
@@ -29,7 +29,7 @@ describe("parseConfig", () => {
 	});
 
 	test("the charge fields can stay in the config when ai isn't charge, so switching is one change", () => {
-		expect(parseConfig({ ...charging, ai: "block" })).toEqual({ ok: true, config: { ai: "block" } });
+		expect(parseConfig({ ...charging, ai: "block" })).toEqual({ ok: true, config: { ai: { kind: "block" } } });
 	});
 
 	test.each([

@@ -1,6 +1,6 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { allowsEverything, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
+import { allowsEverything, chargesIn, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
 
 export interface Options {
 	/**
@@ -40,7 +40,7 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
-	const charge = config.ai === "charge" ? createCharger(config.charge, facilitator) : undefined;
+	const chargers = new Map(chargesIn(config).map((charge) => [charge.price, createCharger(charge, facilitator)]));
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
 	return (req, res, next) => {
@@ -62,7 +62,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;
 		}
-		if (action.kind === "charge" && charge) {
+		const charge = action.kind === "charge" ? chargers.get(action.charge.price) : undefined;
+		if (charge) {
 			// Express catches anything the outcome's handler throws, because the promise is returned to it.
 			return charge(request, req.method, path).then(
 				(outcome) => {

@@ -4,7 +4,12 @@ import { isAddress } from "viem/utils";
  * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
  * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
  */
-export type Config = { readonly ai: "allow" | "block" } | { readonly ai: "charge"; readonly charge: Charge };
+export interface Config {
+	readonly ai: Action;
+}
+
+/** What Fairtoll does with an AI request. A charge carries its price and wallet, so the adapter charges what the config asks. */
+export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge"; readonly charge: Charge };
 
 /** What an AI bot or agent pays for a page, and where the money goes. */
 export interface Charge {
@@ -59,10 +64,15 @@ export function parseConfig(input: unknown): ParseResult {
 	}
 
 	if (errors.length > 0) return { ok: false, errors };
-	if (ai !== "charge") return { ok: true, config: { ai } };
+	if (ai !== "charge") return { ok: true, config: { ai: { kind: ai } } };
 	// Never true, since a missing or invalid field has an error by now. It's here so the types narrow.
 	if (price === undefined || payTo === undefined || network === undefined) return { ok: false, errors };
-	return { ok: true, config: { ai, charge: { price, payTo, network } } };
+	return { ok: true, config: { ai: { kind: "charge", charge: { price, payTo, network } } } };
+}
+
+/** Each charge the config makes, one for each price, so an adapter can make a charger for each at startup. */
+export function chargesIn(config: Config): Charge[] {
+	return config.ai.kind === "charge" ? [config.ai.charge] : [];
 }
 
 /** An undefined or null field, such as from an unset environment variable, is the same as leaving it out. */
