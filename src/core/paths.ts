@@ -12,11 +12,11 @@ export type Pattern = { readonly kind: "exact" | "under"; readonly key: string }
 const unreadable: ReadPath = { kind: "unreadable" };
 
 /**
- * Reads a request path so that every way an app behind Fairtoll could read it falls under the same rules. It
- * is decoded once, as express.static decodes it, read ignoring case, as Express's router matches it, with "\"
- * read as "/", as Windows reads it, and with empty and "." segments left out. Fairtoll never resolves "..",
- * so a path with a ".." segment, which an encoded "." or "/" can also make, is unreadable, and so is a path
- * whose %-escapes are broken.
+ * Reads a request path so that each way the app behind Fairtoll could read it falls under the same rules. The
+ * path is decoded once, as express.static decodes it, and read ignoring case, as Express's router matches it.
+ * "\" counts as "/", as on Windows, and empty and "." segments are left out. Fairtoll never resolves "..", so a
+ * ".." segment, which an encoded "." or "/" can also make, makes a path unreadable, and so does a broken
+ * %-escape.
  */
 export function readPath(raw: string): ReadPath {
 	// Only the target of `OPTIONS *` reaches here without a leading "/". It names the server, not a path, so it
@@ -31,9 +31,9 @@ export function readPath(raw: string): ReadPath {
 }
 
 /**
- * Reads a rule's path. It is written decoded and starts with "/", and only its whole last segment can be "*".
- * Anything a request path can't match once read, such as "//", "%" or a trailing "/", is invalid rather than
- * a rule that silently never applies. It is read ignoring case, like a request path.
+ * Reads a rule's path, ignoring case as `readPath` does. It is written decoded and starts with "/", and only its
+ * whole last segment can be "*". Anything that would make a rule match other paths than it looks like, such as
+ * "//", "%" or a trailing "/", is invalid.
  */
 export function parsePattern(text: string): Pattern {
 	if (!text.startsWith("/")) return invalid('must start with "/", such as "/premium/*"');

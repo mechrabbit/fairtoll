@@ -75,6 +75,12 @@ function randomEntries(rand: Rand): Entry[] {
 	return entries;
 }
 
+/** A rule for a path that none of `entries` is for, if one turns up. */
+function randomNewEntry(rand: Rand, entries: readonly Entry[]): Entry | undefined {
+	const taken = new Set(entries.map(([path]) => path.toLowerCase()));
+	return randomEntries(rand).find(([path]) => !taken.has(path.toLowerCase()));
+}
+
 function randomPath(rand: Rand): string {
 	if (rand() < 0.02) return "*";
 	const count = Math.floor(rand() * 5);
@@ -215,7 +221,7 @@ describe("rules, over generated configs", () => {
 		const found = failures((rand) => {
 			const top = randomTop(rand);
 			const before = randomEntries(rand);
-			const added = randomEntries(rand).find(([path]) => before.every(([other]) => other.toLowerCase() !== path.toLowerCase()));
+			const added = randomNewEntry(rand, before);
 			if (added === undefined) return [];
 			const at = Math.floor(rand() * (before.length + 1));
 			const withRule = [...before.slice(0, at), added, ...before.slice(at)];
@@ -232,7 +238,7 @@ describe("rules, over generated configs", () => {
 		const found = failures((rand) => {
 			const top = randomTop(rand);
 			const before = randomEntries(rand);
-			const added = randomEntries(rand).find(([path]) => before.every(([other]) => other.toLowerCase() !== path.toLowerCase()));
+			const added = randomNewEntry(rand, before);
 			if (added === undefined) return [];
 			const after = [...before, added];
 			const original = configOf(top, before);

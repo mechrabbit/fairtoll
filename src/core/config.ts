@@ -19,8 +19,7 @@ export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | {
 
 /**
  * The publisher's rules, keyed by path as `readPath` keys a request, such as "/premium". An `exact` rule covers
- * only its own path, and an `under` rule, written "/premium/*", covers its path and every path below it. They
- * are two maps so that a request whose last segment is a literal "*" can't match an `under` rule.
+ * only its own path, and an `under` rule, written "/premium/*", covers its path and every path below it.
  */
 export interface Rules {
 	readonly exact: ReadonlyMap<string, Action>;
