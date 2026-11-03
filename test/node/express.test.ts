@@ -141,6 +141,60 @@ describe("blocking AI", () => {
 	});
 });
 
+describe("rules", () => {
+	const dotPaths = [
+		"/articles/../premium/1",
+		"/articles/%2e%2e/premium/1",
+		"/articles/.%2E/premium/1",
+		"/articles%2f..%2fpremium/1",
+		"/articles/%5c../premium/1",
+		"/articles\\..\\premium/1",
+		"/%zz",
+	];
+
+	test("a block rule answers an AI crawler with a 403 only on the paths it covers", async () => {
+		const blockComments = fairtoll({ rules: { "/comments": { ai: "block" } } });
+		const blocked = (await send(site(blockComments), post('{"text":"secret-body"}'))).toString();
+		expect(blocked).toMatch(/^HTTP\/1\.1 403 Forbidden\r\n/);
+		expect(blocked).not.toMatch(/secret-body/);
+		const raw = get("/articles/2", gptBot);
+		expect((await send(site(blockComments), raw)).equals(await send(site(), raw))).toBe(true);
+	});
+
+	test.each([
+		["a human page view", get("/articles/1", chrome)],
+		["an AI crawler", get("/articles/2", gptBot)],
+		["a POST whose body the app parses", post('{"text":"secret-body"}')],
+		...dotPaths.map((path) => [`an AI crawler on ${path}`, get(path, gptBot)]),
+	])("%s is byte for byte the same when every rule allows, with or without a log", async (_name, raw) => {
+		const allowing = { rules: { "/articles/*": { ai: "allow" }, "/comments": { ai: "allow" } } };
+		const without = await send(site(), raw);
+		expect((await send(site(fairtoll(allowing)), raw)).equals(without)).toBe(true);
+		expect((await send(site(fairtoll(allowing, collect())), raw)).equals(without)).toBe(true);
+	});
+
+	test.each(dotPaths)("answers an AI crawler on %s with a 403 while a rule blocks, and leaves a reader's response the same", async (path) => {
+		const blockPremium = fairtoll({ rules: { "/premium/*": { ai: "block" } } });
+		expect((await send(site(blockPremium), get(path, gptBot))).toString()).toMatch(/^HTTP\/1\.1 403 Forbidden\r\n/);
+		const reader = get(path, chrome);
+		expect((await send(site(blockPremium), reader)).equals(await send(site(), reader))).toBe(true);
+	});
+
+	test("rules name paths from the site's root, even when Fairtoll is mounted on a path", async () => {
+		const mounted = (rules: object) => {
+			const app = express();
+			app.use("/site", fairtoll({ rules }));
+			app.get("/site/:section/:id", (req, res) => res.send(`${req.params.section} ${req.params.id}\n`));
+			return app;
+		};
+		const fromRoot = mounted({ "/site/premium/*": { ai: "block" } });
+		expect((await send(fromRoot, get("/site/premium/1", gptBot))).toString()).toMatch(/^HTTP\/1\.1 403 /);
+		expect((await send(fromRoot, get("/site/articles/1", gptBot))).toString()).toMatch(/^HTTP\/1\.1 200 /);
+		const fromMount = mounted({ "/premium/*": { ai: "block" } });
+		expect((await send(fromMount, get("/site/premium/1", gptBot))).toString()).toMatch(/^HTTP\/1\.1 200 /);
+	});
+});
+
 describe("the log option", () => {
 	test("without it, nothing is logged anywhere", async () => {
 		const stdout = vi.spyOn(process.stdout, "write");

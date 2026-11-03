@@ -28,6 +28,7 @@ async function site(config: unknown, options: Options = { facilitator: { url: fa
 	app.post("/comments", express.text(), (req, res) => res.status(201).send(`Comment: ${req.body}\n`));
 	app.options("/articles/:id", (_req, res) => res.set("Access-Control-Allow-Methods", "GET, POST").sendStatus(204));
 	app.all("/articles/:id", (req, res) => res.status(req.method === "POST" ? 201 : 200).send(`Article ${req.params.id}\n`));
+	app.get("/premium/:id", (req, res) => res.send(`Premium ${req.params.id}\n`));
 	const server = app.listen(0);
 	await new Promise((resolve) => server.once("listening", resolve));
 	const port = (server.address() as AddressInfo).port;
@@ -129,6 +130,76 @@ test("a paid POST reaches the app with its body", async () => {
 	} finally {
 		close();
 	}
+});
+
+/** The PAYMENT-REQUIRED header of a 402, which a payer signs a payment for. */
+function paymentRequired(response: Response): string {
+	const header = response.headers.get("payment-required");
+	if (header === null) throw new Error(`expected a 402 with a PAYMENT-REQUIRED header, got ${response.status}`);
+	return header;
+}
+
+/** The amount a 402 asks for, in millionths of a USDC. */
+function amountAsked(response: Response): string | undefined {
+	return createPayer().decode(paymentRequired(response)).accepts[0]?.amount;
+}
+
+describe("charging by rules", () => {
+	const twoPrices = { ...charging, rules: { "/premium/*": { ai: "charge", price: "0.01" } } };
+
+	test("each path asks for the price of the rule that covers it, and a payment for each settles", async () => {
+		const { send, close } = await site(twoPrices);
+		try {
+			const article = await send("/articles/1");
+			const premium = await send("/premium/1");
+			expect(amountAsked(article)).toBe("2000");
+			expect(amountAsked(premium)).toBe("10000");
+			const paidArticle = await send("/articles/1", { payment: await createPayer().sign(paymentRequired(article)) });
+			const paidPremium = await send("/premium/1", { payment: await createPayer().sign(paymentRequired(premium)) });
+			expect([paidArticle.status, await paidArticle.text()]).toEqual([200, "Article 1\n"]);
+			expect([paidPremium.status, await paidPremium.text()]).toEqual([200, "Premium 1\n"]);
+			expect(facilitator.settled).toHaveLength(2);
+		} finally {
+			close();
+		}
+	});
+
+	test("a payment for a cheaper path's price gets a 402 on a dearer path, and nothing settles", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const { send, close } = await site(twoPrices);
+		try {
+			const payment = await createPayer().sign(paymentRequired(await send("/articles/1")));
+			const response = await send("/premium/1", { payment });
+			expect(response.status).toBe(402);
+			expect(await response.text()).not.toMatch(/Premium/);
+			expect(facilitator.settled).toHaveLength(0);
+		} finally {
+			close();
+		}
+	});
+
+	test("a path no rule covers follows ai, so it serves without payment while ai allows", async () => {
+		const { send, close } = await site({ payTo: wallet, network: "base-sepolia", rules: { "/premium/*": { ai: "charge", price: "0.01" } } });
+		try {
+			const article = await send("/articles/1");
+			expect([article.status, await article.text()]).toEqual([200, "Article 1\n"]);
+			expect(article.headers.get("payment-required")).toBeNull();
+			expect(amountAsked(await send("/premium/1"))).toBe("10000");
+		} finally {
+			close();
+		}
+	});
+
+	test("without rules, an AI request whose path has a .. segment is charged like any other", async () => {
+		const { send, close } = await site(charging);
+		try {
+			// fetch resolves a plain or %2e-encoded .. before sending, so this .. is made by encoded slashes.
+			const response = await send("/articles%2f..%2farticles/1");
+			expect(amountAsked(response)).toBe("2000");
+		} finally {
+			close();
+		}
+	});
 });
 
 describe("when the facilitator fails", () => {
