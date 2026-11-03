@@ -59,7 +59,7 @@ A per-path policy maps each class to one of four actions:
 - Require a license.
 - Charge.
 
-In the config, `rules` maps a path such as `/premium/*` to an action for AI requests. The most specific rule wins, so the order of rules never matters, and `ai` covers every other path. Rules read a path decoded and ignoring case, and never resolve `..`, so while anything blocks or charges, an AI request whose path has a `..` segment gets a 403.
+In the config, `rules` maps a path such as `/premium/*` to an action for AI requests. The most specific rule wins, so the order of rules never matters, and `ai` covers every other path. Rules read a path decoded and ignoring case, and never resolve `..`, so while a config has rules and anything in it blocks or charges, an AI request whose path has a `..` segment gets a 403.
 
 A publisher's rollout moves through four steps: observe, block AI bots and agents, charge on a few paths, and full policy. Each step is a valid state of the config, not a separate mode of the code.
 

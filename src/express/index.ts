@@ -25,10 +25,10 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
  * get there, such as `{ "/premium/*": { ai: "charge", price: "0.01" }, "/premium/free": { ai: "allow" } }`.
  * "/premium/*" covers /premium and every path below it, and "/premium/free" covers only itself. The most
  * specific rule wins, so the order rules are written in never matters, and `ai` covers every other path.
- * Rules read a path decoded and ignoring case, so they cover it however the app's router or static files
- * read it. A mount path matches only the path as sent, so `app.use("/premium", ...)` misses /%70remium/1,
- * which express.static serves as /premium/1. While anything blocks or charges, an AI request whose path has
- * a ".." segment gets a 403.
+ * Rules read a path decoded and ignoring case, so they cover it as Express's router and express.static read
+ * it. A mount path matches only the path as sent, so `app.use("/premium", ...)` misses /%70remium/1, which
+ * express.static serves as /premium/1. When the config has rules and any of them or `ai` blocks or charges, an
+ * AI request whose path has a ".." segment gets a 403.
  * When charging, a payment settles before the app runs, so a bot pays for every request a charge covers, a
  * 404, an image or a form it posts included. Only a CORS preflight is free, so the app must not answer one
  * with the page.

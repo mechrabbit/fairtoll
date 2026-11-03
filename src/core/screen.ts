@@ -7,10 +7,10 @@ const allow: Action = { kind: "allow" };
 const block: Action = { kind: "block" };
 
 /**
- * Every request is charged except a CORS preflight, which is let through because a 402 there would break
- * every cross-origin request to the page. Many apps serve the page whatever the method, so a free POST or
- * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
- * answers a preflight with the page still gives the page away.
+ * A request a charge covers is charged unless it's a CORS preflight, which is let through because a 402 there
+ * would break every cross-origin request to the page. Many apps serve the page whatever the method, so a free
+ * POST or other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app
+ * that answers a preflight with the page still gives the page away.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
