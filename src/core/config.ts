@@ -5,20 +5,28 @@ import { canonicalRulePath } from "./paths.js";
  * What the publisher asks Fairtoll to do, as `parseConfig` returns it with every default filled in. The
  * publisher writes any object `parseConfig` accepts, such as `{}`, which only observes.
  *
- * `ai` applies to every path no rule matches. A rule applies its own `ai` to AI requests under its path, such as
- * `{ path: "/premium/*", ai: "charge", price: "0.01" }`. A rule that charges without a price charges the top-level
- * price, and every charge goes to the top-level `payTo` on the top-level `network`. Removing a rule puts its paths
- * back on the top-level `ai`.
+ * `ai` decides what happens to AI requests on every path that no rule matches. Each rule decides it for the
+ * paths it matches, such as `{ path: "/premium/*", ai: "charge", price: "0.01" }`. Removing a rule puts its
+ * paths back on the top-level `ai`.
  *
- * A rule's path is either exact, such as "/pricing", or ends in "/*", such as "/premium/*", which covers /premium
- * and everything under it. "/*" covers every path. Paths match the page the request names, ignoring case, a
- * trailing slash and percent-encoding, so a bot can't reach a rule's page under a path that doesn't match it.
- * When there are rules and they or `ai` block or charge, an AI request whose path has a ".." segment is
- * blocked, because parts of an app resolve ".." differently and could serve a page the rules didn't match.
- * When more than one rule matches, the most specific wins: the exact path, then the longest wildcard. That way
- * the order of the rules never matters, and a rule for a section, such as "/premium/free/*" inside
- * "/premium/*", works wherever it is written. Two rules can't have the same path. Rules match the whole path,
- * not the part under where the middleware is mounted.
+ * Charging:
+ * - A rule that charges uses its own `price`, or the top-level `price` if it has none.
+ * - Every charge is paid to the top-level `payTo`, on the top-level `network`.
+ *
+ * Rule paths:
+ * - A path is exact, such as "/pricing", or ends in "/*", such as "/premium/*", which covers /premium and
+ *   everything under it. "/*" covers every path.
+ * - Rules match the whole path, not the part under where the middleware is mounted.
+ * - Two rules can't have the same path.
+ *
+ * Matching a request:
+ * - The request's path is compared ignoring case, a trailing slash and percent-encoding, so a bot can't reach a
+ *   rule's page by writing its path another way (see `canonicalPath`).
+ * - When several rules match, the most specific wins: an exact path, then the wildcard with the longest prefix.
+ *   So the order of the rules never matters, and "/premium/free/*" inside "/premium/*" works wherever it is
+ *   written.
+ * - When there are rules and anything blocks or charges, an AI request whose path has a ".." segment is
+ *   blocked, because parts of an app resolve ".." differently (see `climbsUp`).
  */
 export type Config = Policy & { readonly rules: readonly Rule[] };
 
@@ -87,17 +95,30 @@ export function parseConfig(input: unknown): ParseResult {
 	}
 
 	if (errors.length > 0) return { ok: false, errors };
-	// Every charge field a policy uses is set by now, since a missing or invalid one has an error.
-	const policy = (ai: Policy["ai"], rulePrice: string | undefined): Policy =>
-		ai === "charge" ? { ai, charge: { price: (rulePrice ?? price)!, payTo: payTo!, network: network! } } : { ai };
-	return { ok: true, config: { ...policy(ai, undefined), rules: rules.map((rule) => ({ ...policy(rule.ai, rule.price), path: rule.path })) } };
+	const topLevel = toPolicy(ai, price, payTo, network);
+	const parsedRules = rules.map((rule) => ({ ...toPolicy(rule.ai, rule.price ?? price, payTo, network), path: rule.path }));
+	return { ok: true, config: { ...topLevel, rules: parsedRules } };
+}
+
+/**
+ * The policy for an `ai`. When `ai` is "charge", the checks in `parseConfig` have already added an error for
+ * any charge field that is missing, so this only throws if those checks have a bug.
+ */
+function toPolicy(ai: Policy["ai"], price: string | undefined, payTo: string | undefined, network: Network | undefined): Policy {
+	if (ai !== "charge") return { ai };
+	if (price === undefined || payTo === undefined || network === undefined) {
+		throw new Error("fairtoll: a charge is missing a field that parseConfig should have reported");
+	}
+	return { ai, charge: { price, payTo, network } };
 }
 
 /** A rule as written, once its fields are checked. */
 interface RuleInput {
+	/** In canonical form. */
 	readonly path: string;
 	readonly ai: Policy["ai"];
-	readonly price?: string;
+	/** Undefined when the rule has no price of its own. */
+	readonly price: string | undefined;
 }
 
 /** The rules that parse, with an error added for each problem. An undefined or null `rules` is no rules. */
@@ -107,6 +128,7 @@ function parseRules(value: unknown, errors: ConfigError[], hasTopPrice: boolean)
 		errors.push({ field: "rules", message: "must be an array of rules" });
 		return [];
 	}
+	// The canonical path of each rule so far, and the rule's index, to find two rules for the same paths.
 	const seen = new Map<string, number>();
 	return value.flatMap((item: unknown, index): RuleInput[] => {
 		const at = `rules[${index}]`;
@@ -115,21 +137,28 @@ function parseRules(value: unknown, errors: ConfigError[], hasTopPrice: boolean)
 			return [];
 		}
 		errors.push(...unknownFields(item, ruleFields, `${at}.`));
+
 		const written = check(item, errors, "path", isRulePath, 'must be a path starting with "/", with "*" only as a final "/*", such as "/premium/*"', at);
 		const ai = check(item, errors, "ai", isAi, aiMessage, at);
 		const price = check(item, errors, "price", isPrice, priceMessage, at);
 		for (const name of ["path", "ai"]) {
 			if (field(item, name) === undefined) errors.push({ field: `${at}.${name}`, message: "is needed in every rule" });
 		}
-		if (ai === "charge" && field(item, "price") === undefined && !hasTopPrice) {
+		const chargesWithNoPrice = ai === "charge" && field(item, "price") === undefined && !hasTopPrice;
+		if (chargesWithNoPrice) {
 			errors.push({ field: `${at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' });
 		}
-		const path = written === undefined ? undefined : canonicalRulePath(written);
-		const same = path === undefined ? undefined : seen.get(path);
-		if (same !== undefined) errors.push({ field: `${at}.path`, message: `matches the same paths as rules[${same}]` });
-		else if (path !== undefined) seen.set(path, index);
-		if (path === undefined || ai === undefined) return [];
-		return [{ path, ai, ...(price === undefined ? {} : { price }) }];
+
+		if (written === undefined) return [];
+		const path = canonicalRulePath(written);
+		const earlier = seen.get(path);
+		if (earlier === undefined) {
+			seen.set(path, index);
+		} else {
+			errors.push({ field: `${at}.path`, message: `matches the same paths as rules[${earlier}]` });
+		}
+		if (ai === undefined) return [];
+		return [{ path, ai, price }];
 	});
 }
 

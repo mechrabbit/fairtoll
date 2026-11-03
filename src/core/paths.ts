@@ -24,15 +24,22 @@ export function ruleFor<R extends { readonly path: string }>(rules: readonly R[]
 }
 
 function matchRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
+	// An exact rule is the most specific match there can be.
+	const exact = rules.find((rule) => rule.path === page);
+	if (exact !== undefined) return exact;
+
+	// Otherwise, of the wildcards that cover the page, the one with the longest prefix.
 	let best: R | undefined;
+	let bestPrefixLength = -1;
 	for (const rule of rules) {
-		if (!rule.path.endsWith("/*")) {
-			if (rule.path === page) return rule;
-			continue;
-		}
-		// "/premium/*" covers /premium and everything under it, and "/*" covers every path.
+		if (!rule.path.endsWith("/*")) continue;
+		// "/premium/*" has the prefix "/premium", and "/*" has the prefix "", which covers every page.
 		const prefix = rule.path.slice(0, -2);
-		if ((page === prefix || page.startsWith(`${prefix}/`)) && (best === undefined || prefix.length > best.path.length - 2)) best = rule;
+		const covers = page === prefix || page.startsWith(`${prefix}/`);
+		if (covers && prefix.length > bestPrefixLength) {
+			best = rule;
+			bestPrefixLength = prefix.length;
+		}
 	}
 	return best;
 }
@@ -55,8 +62,11 @@ export function climbsUp(path: string): boolean {
 
 /** The path's segments, decoded and lowercased, with backslashes as slashes, and without empty or "." segments. */
 function segments(path: string): string[] {
-	const decoded = path.split("/").map(decodeSegment).join("/").replaceAll("\\", "/").toLowerCase();
-	return decoded.split("/").filter((segment) => segment !== "" && segment !== ".");
+	// Decoded one segment at a time, so a segment that isn't valid percent-encoding doesn't stop the rest decoding.
+	// A decoded %2f or %5c then splits its segment in two, as it does for a static file server.
+	const decoded = path.split("/").map(decodeSegment).join("/");
+	const withSlashes = decoded.replaceAll("\\", "/").toLowerCase();
+	return withSlashes.split("/").filter((segment) => segment !== "" && segment !== ".");
 }
 
 function decodeSegment(segment: string): string {

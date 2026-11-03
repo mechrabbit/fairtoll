@@ -20,11 +20,15 @@ const allow: Action = { kind: "allow" };
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
-	if (config.rules.length > 0 && climbsUp(path) && !allowsEverything(config)) return { kind: "block" };
+
+	const rulesBlockOrCharge = config.rules.length > 0 && !allowsEverything(config);
+	if (rulesBlockOrCharge && climbsUp(path)) return { kind: "block" };
+
 	// The path's most specific rule, or the top-level policy when no rule matches.
 	const policy = ruleFor(config.rules, path) ?? config;
-	if (policy.ai !== "charge") return policy.ai === "block" ? { kind: "block" } : allow;
-	return preflight ? allow : { kind: "charge", charge: policy.charge };
+	if (policy.ai === "block") return { kind: "block" };
+	if (policy.ai === "charge") return preflight ? allow : { kind: "charge", charge: policy.charge };
+	return allow;
 }
 
 export function allowsEverything(config: Config): boolean {
