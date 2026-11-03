@@ -149,6 +149,7 @@ describe("rules", () => {
 		"/articles%2f..%2fpremium/1",
 		"/articles/%5c../premium/1",
 		"/articles\\..\\premium/1",
+		"*/../premium/1",
 		"/%zz",
 	];
 
@@ -178,6 +179,11 @@ describe("rules", () => {
 		expect((await send(site(blockPremium), get(path, gptBot))).toString()).toMatch(/^HTTP\/1\.1 403 Forbidden\r\n/);
 		const reader = get(path, chrome);
 		expect((await send(site(blockPremium), reader)).equals(await send(site(), reader))).toBe(true);
+	});
+
+	test("answers an AI crawler with a 403 on a target sent in absolute form whose path, read as express.static reads it, a rule blocks", async () => {
+		const blockPremium = fairtoll({ rules: { "/premium/*": { ai: "block" } } });
+		expect((await send(site(blockPremium), get("http://example.com%2fpremium/1", gptBot))).toString()).toMatch(/^HTTP\/1\.1 403 Forbidden\r\n/);
 	});
 
 	test("rules name paths from the site's root, even when Fairtoll is mounted on a path", async () => {

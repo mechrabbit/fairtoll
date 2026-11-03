@@ -20,7 +20,8 @@ describe("readPath", () => {
 		["an encoded non-ASCII letter", "/caf%C3%A9", "/café"],
 		["a double-encoded .., decoded once as static decodes it", "/%252e%252e/x", "/%2e%2e/x"],
 		["three dots, which is a name", "/premium/...", "/premium/..."],
-		["the target of OPTIONS *, which no rule's key matches", "*", ""],
+		["the target of OPTIONS *, which no rule's key matches", "*", "/*"],
+		["a path without a leading /, as express.static reads it", "%2fpremium/42", "/premium/42"],
 	])("reads %s", (_name, raw, key) => {
 		expect(readPath(raw)).toMatchObject({ kind: "read", key });
 	});
@@ -35,6 +36,7 @@ describe("readPath", () => {
 		["a .. between encoded slashes", "/premium%2f..%2fx"],
 		["a .. made by \\", "/premium\\..\\x"],
 		["a .. made by an encoded \\", "/premium/%5c..%5cx"],
+		["a .. in a path without a leading /", "*/../premium/1"],
 		["a broken escape", "/%zz"],
 		["a cut-off escape", "/caf%C3%A"],
 	])("finds %s unreadable", (_name, raw) => {

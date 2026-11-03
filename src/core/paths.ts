@@ -17,11 +17,10 @@ const unreadable: ReadPath = { kind: "unreadable" };
  * "\" counts as "/", as on Windows, and empty and "." segments are left out. Fairtoll never resolves "..", so a
  * ".." segment, which an encoded "." or "/" can also make, makes a path unreadable, and so does a broken
  * %-escape.
+ * A path without a leading "/", such as `*`, or `%2fpremium` from `GET http://host%2fpremium`, is read as if it
+ * had one, as express.static reads it. `*` reads as "/*", which no rule's key can be.
  */
 export function readPath(raw: string): ReadPath {
-	// Only the target of `OPTIONS *` reaches here without a leading "/". It names the server, not a path, so it
-	// gets a key no rule has.
-	if (!raw.startsWith("/")) return { kind: "read", key: "", segments: [] };
 	const decoded = decode(raw);
 	if (decoded === undefined) return unreadable;
 	const parts = decoded.toLowerCase().split(/[\\/]/);
