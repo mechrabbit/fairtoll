@@ -1,6 +1,6 @@
 import { classify } from "./classify.js";
 import type { Charge, Config } from "./config.js";
-import { climbsUp, ruleFor } from "./paths.js";
+import { hasDotDotSegment, ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
 export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | { readonly kind: "charge"; readonly charge: Charge };
@@ -15,14 +15,14 @@ const allow: Action = { kind: "allow" };
  *
  * When the config has rules and doesn't allow every path, an AI request whose path has a ".." segment is
  * blocked, preflight or not, because the app could serve it as a page other than the one the rules matched
- * (see `climbsUp`). Browsers and crawlers resolve dot segments before sending, so a real visitor's path almost
+ * (see `hasDotDotSegment`). Browsers and crawlers resolve dot segments before sending, so a real visitor's path almost
  * never has one.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
 
 	const rulesBlockOrCharge = config.rules.length > 0 && !allowsEverything(config);
-	if (rulesBlockOrCharge && climbsUp(path)) return { kind: "block" };
+	if (rulesBlockOrCharge && hasDotDotSegment(path)) return { kind: "block" };
 
 	// The path's most specific rule, or the top-level policy when no rule matches.
 	const policy = ruleFor(config.rules, path) ?? config;

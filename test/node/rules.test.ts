@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseConfig, type Config } from "../../src/core/index.js";
-import { canonicalPath, climbsUp, ruleFor } from "../../src/core/paths.js";
+import { canonicalPath, hasDotDotSegment, ruleFor } from "../../src/core/paths.js";
 import { decide } from "../../src/core/screen.js";
 
 const wallet = `0x${"a".repeat(40)}`;
@@ -33,7 +33,7 @@ describe("canonicalPath", () => {
 	});
 });
 
-describe("climbsUp", () => {
+describe("hasDotDotSegment", () => {
 	test.each([
 		["/premium/a/../../x", true],
 		["/premium/a/%2e%2e/x", true],
@@ -43,7 +43,7 @@ describe("climbsUp", () => {
 		["/premium/a..b/x", false],
 		["/premium/x", false],
 	])("%s: %s", (path, climbs) => {
-		expect(climbsUp(path)).toBe(climbs);
+		expect(hasDotDotSegment(path)).toBe(climbs);
 	});
 });
 
@@ -160,7 +160,7 @@ describe("rules over generated configs", () => {
 			expect(decisions(parsed(removed), paths), `seed ${seed}`).toEqual(decisions(parsed(base), paths));
 			const addedRule = parsed({ rules: [added], payTo: wallet, network: "base-sepolia", price: "0.002" }).rules;
 			// A rule can also block every path with "..", wherever it is, so those are left out.
-			const unmatched = paths.filter((path) => ruleFor(addedRule, path) === undefined && !climbsUp(path));
+			const unmatched = paths.filter((path) => ruleFor(addedRule, path) === undefined && !hasDotDotSegment(path));
 			expect(decisions(parsed(withRule), unmatched), `seed ${seed}`).toEqual(decisions(parsed(base), unmatched));
 		}
 	});

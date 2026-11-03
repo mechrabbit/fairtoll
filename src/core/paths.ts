@@ -7,7 +7,7 @@
  */
 export function canonicalPath(path: string): string {
 	const resolved: string[] = [];
-	for (const segment of segments(path)) {
+	for (const segment of decodedSegments(path)) {
 		if (segment === "..") resolved.pop();
 		else resolved.push(segment);
 	}
@@ -20,10 +20,11 @@ export function canonicalPath(path: string): string {
  * the rules never matters, and no two rules can tie, because `parseConfig` rejects two with the same path.
  */
 export function ruleFor<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
-	return rules.length === 0 ? undefined : matchRule(rules, canonicalPath(path));
+	return rules.length === 0 ? undefined : mostSpecificRule(rules, canonicalPath(path));
 }
 
-function matchRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
+/** The rule for a page, which is a path in canonical form. */
+function mostSpecificRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
 	// An exact rule is the most specific match there can be.
 	const exact = rules.find((rule) => rule.path === page);
 	if (exact !== undefined) return exact;
@@ -56,12 +57,12 @@ export function canonicalRulePath(path: string): string {
  * app can resolve one differently: Express's router not at all, a static file server from the root, and a proxy
  * or `new URL` from where its handler is mounted. So such a path can name a different page for each.
  */
-export function climbsUp(path: string): boolean {
-	return segments(path).includes("..");
+export function hasDotDotSegment(path: string): boolean {
+	return decodedSegments(path).includes("..");
 }
 
 /** The path's segments, decoded and lowercased, with backslashes as slashes, and without empty or "." segments. */
-function segments(path: string): string[] {
+function decodedSegments(path: string): string[] {
 	// Decoded one segment at a time, so a segment that isn't valid percent-encoding doesn't stop the rest decoding.
 	// A decoded %2f or %5c then splits its segment in two, as it does for a static file server.
 	const decoded = path.split("/").map(decodeSegment).join("/");
