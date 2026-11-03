@@ -21,10 +21,17 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
 /**
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
  * request the config charges, and passes the rest on unchanged.
- * When charging, a payment settles before the app runs, so a bot pays for every request under the mount, a 404,
- * an image or a form it posts included. Mount it on the paths that hold the content, such as
- * `app.use("/articles", fairtoll(...))`. Only a CORS preflight is free, so the app must not answer one with
- * the page.
+ * Mount it at the root and scope it with `rules`, which map a path from the site's root to what AI requests
+ * get there, such as `{ "/premium/*": { ai: "charge", price: "0.01" }, "/premium/free": { ai: "allow" } }`.
+ * "/premium/*" covers /premium and every path below it, and "/premium/free" covers only itself. The most
+ * specific rule wins, so the order rules are written in never matters, and `ai` covers every other path.
+ * Rules read a path decoded and ignoring case, so they cover it however the app's router or static files
+ * read it. A mount path matches only the path as sent, so `app.use("/premium", ...)` misses /%70remium/1,
+ * which express.static serves as /premium/1. While anything blocks or charges, an AI request whose path has
+ * a ".." segment gets a 403.
+ * When charging, a payment settles before the app runs, so a bot pays for every request a charge covers, a
+ * 404, an image or a form it posts included. Only a CORS preflight is free, so the app must not answer one
+ * with the page.
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {

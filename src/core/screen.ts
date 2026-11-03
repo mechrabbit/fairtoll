@@ -1,8 +1,10 @@
 import { classify } from "./classify.js";
-import type { Action, Config } from "./config.js";
+import { actionsIn, type Action, type Config } from "./config.js";
+import { readPath, ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
 const allow: Action = { kind: "allow" };
+const block: Action = { kind: "block" };
 
 /**
  * Every request is charged except a CORS preflight, which is let through because a 402 there would break
@@ -10,14 +12,28 @@ const allow: Action = { kind: "allow" };
  * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
  * answers a preflight with the page still gives the page away.
  */
-export function decide(config: Config, cls: RequestClass, preflight: boolean): Action {
+export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
-	if (config.ai.kind === "charge" && preflight) return allow;
-	return config.ai;
+	const action = actionAt(config, path);
+	if (action.kind === "charge" && preflight) return allow;
+	return action;
+}
+
+/**
+ * What an AI request gets at `path`. Without rules the path isn't read, so `ai` alone decides. A path that
+ * can't be read safely, such as one with a ".." segment, is blocked while anything blocks or charges, because
+ * the app could read it as a path some rule covers. While everything allows, it is allowed, so turning on
+ * logging never changes a response.
+ */
+function actionAt(config: Config, path: string): Action {
+	if (config.rules.exact.size === 0 && config.rules.under.size === 0) return config.ai;
+	const read = readPath(path);
+	if (read.kind === "unreadable") return allowsEverything(config) ? allow : block;
+	return ruleFor(config.rules, read) ?? config.ai;
 }
 
 export function allowsEverything(config: Config): boolean {
-	return config.ai.kind === "allow";
+	return actionsIn(config).every((action) => action.kind === "allow");
 }
 
 /**
@@ -54,7 +70,7 @@ export function screen(request: Request, method: string, path: string, config: C
 		const preflight = method === "OPTIONS" && request.headers.has("access-control-request-method");
 		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
 		// tell it the site has no rules at all.
-		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight);
+		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight, path);
 		if (cls !== "human" && log) {
 			// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
 			void (async () => {

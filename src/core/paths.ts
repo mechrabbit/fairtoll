@@ -1,3 +1,5 @@
+import type { Action, Rules } from "./config.js";
+
 /**
  * A request path as rules match it. `key` is "/" and the segments joined by "/", which is how a rule's path
  * is keyed too. A path that is "unreadable" can't be matched against rules safely.
@@ -47,6 +49,21 @@ export function parsePattern(text: string): Pattern {
 	if (segments.includes(".") || segments.includes("..")) return invalid('must not have a "." or ".." segment');
 	if (segments.some((segment) => segment.includes("*"))) return invalid('can use "*" only as its whole last segment, as in "/premium/*"');
 	return { kind: under ? "under" : "exact", key: pathKey(segments) };
+}
+
+/**
+ * The most specific rule that covers a path: its exact rule, or else the deepest `under` rule among the path
+ * and the paths above it. No two rules can tie, because an exact key is unique and the `under` rules covering
+ * one path all have different depths, so the order rules are written in never matters.
+ */
+export function ruleFor(rules: Rules, path: { readonly key: string; readonly segments: readonly string[] }): Action | undefined {
+	const exact = rules.exact.get(path.key);
+	if (exact !== undefined) return exact;
+	for (let depth = path.segments.length; depth > 0; depth--) {
+		const under = rules.under.get(pathKey(path.segments.slice(0, depth)));
+		if (under !== undefined) return under;
+	}
+	return undefined;
 }
 
 /** The one place a key is spelled, so a rule's path and a request path can't be keyed differently. */
