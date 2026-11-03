@@ -15,8 +15,9 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/monitor` | Fairtoll classifies each request and lets it through |
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
 | `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, charges every method but a CORS preflight, and lets everyone else through |
+| `/paths` | Fairtoll has rules that charge AI bots and agents $0.01 under `/paths/premium` and block them under `/paths/drafts`, and lets every other request through |
 
-`/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
+`/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`, and `/paths` charges to the same wallet. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
 
 To pay, take the `PAYMENT-REQUIRED` header from a 402 and sign a payment for it with `demo/pay.js`, which prints the `PAYMENT-SIGNATURE` header to send back:
 
@@ -44,7 +45,7 @@ To compare settings, send the same requests to a run with each, as in `npm run d
 { "description": "Fairtoll with logging on", "config": {}, "log": true }
 ```
 
-`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it, and `/charged` sets `ai` to `"charge"`, with the price, wallet and network above unless `config` sets them. `log: true` turns on the `log` option. An invalid config stops the server at startup.
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it, and `/charged` sets `ai` to `"charge"`, with the price, wallet and network above unless `config` sets them. `/paths` sets `ai` to `"allow"` and its own `rules`, with the wallet and network above unless `config` sets them. A rule names a path from the site's root, so the rules of `/paths` start with `/paths`. A publisher mounts Fairtoll at the root instead, and writes rules such as `/premium/*`. `log: true` turns on the `log` option. An invalid config stops the server at startup.
 
 `PORT` sets the port, and the server stops with an error if the port is in use.
 
@@ -73,7 +74,7 @@ A scenario is a shell script in `demo/scenarios/` that builds the package, start
 sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. To write a new scenario, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. `paths.sh` has a crawler on `/paths` read an article free, pay for a premium one, and get a 403 for a draft and for a premium article reached through `..`, while a reader, and the same crawler on `/monitor`, read the premium article free. Each request's description ends with the status it should get. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 

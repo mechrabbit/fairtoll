@@ -22,7 +22,7 @@ send() {
 	echo
 }
 
-for endpoint in open monitor blocked charged; do
+for endpoint in open monitor blocked charged paths; do
 	send "A reader in Chrome, /$endpoint" -H 'Demo-Visitor: Chrome' "http://localhost:$PORT/$endpoint/articles/42?ref=home"
 	send "GPTBot reads the same article, /$endpoint" -H 'Demo-Visitor: GPTBot' "http://localhost:$PORT/$endpoint/articles/42?ref=home"
 	send "ClaudeBot posts a comment, /$endpoint" -H 'Demo-Visitor: ClaudeBot' -H 'Content-Type: application/json' -d '{"text":"hello"}' "http://localhost:$PORT/$endpoint/comments"

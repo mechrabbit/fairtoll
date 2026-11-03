@@ -49,7 +49,11 @@ app.use((req, res, next) => {
 });
 const options = log ? { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) } : {};
 const blockedConfig = { ...config, ai: "block" };
-const chargedConfig = { price: "0.002", payTo: "0x000000000000000000000000000000000000dEaD", network: "base-sepolia", ...config, ai: "charge" };
+const demoWallet = { payTo: "0x000000000000000000000000000000000000dEaD", network: "base-sepolia" };
+const chargedConfig = { price: "0.002", ...demoWallet, ...config, ai: "charge" };
+// Rules name paths from the site's root, so these start with /paths, where this setup is mounted.
+const pathsRules = { "/paths/premium/*": { ai: "charge", price: "0.01" }, "/paths/drafts/*": { ai: "block" } };
+const pathsConfig = { ...demoWallet, ...config, ai: "allow", rules: pathsRules };
 // /charged settles through the stand-in facilitator below, on this same server, so its calls print here too.
 const chargedOptions = { ...options, facilitator: { url: `http://localhost:${port}/facilitator` } };
 let blocked;
@@ -58,6 +62,7 @@ try {
 	blocked = fairtoll(blockedConfig, options);
 	app.use("/blocked", blocked);
 	app.use("/charged", fairtoll(chargedConfig, chargedOptions));
+	app.use("/paths", fairtoll(pathsConfig, chargedOptions));
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);
 	process.exit(1);
@@ -87,9 +92,10 @@ const endpoints = [
 	"   /monitor  Fairtoll classifies each request and lets it through",
 	"   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through",
 	"   /charged  Fairtoll answers AI bots and agents with a 402 and a price until they pay, and lets everyone else through",
+	"   /paths    Fairtoll charges AI bots and agents under /paths/premium, blocks them under /paths/drafts, and lets every other request through",
 ].join("\n");
 // Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
-app.use(["/open", "/monitor", "/blocked", "/charged"], express.text({ type: "*/*" }), (req, res) => {
+app.use(["/open", "/monitor", "/blocked", "/charged", "/paths"], express.text({ type: "*/*" }), (req, res) => {
 	res.send(`${req.method} ${req.originalUrl.split("?")[0]}${typeof req.body === "string" && req.body ? `\n${req.body}` : ""}\n`);
 });
 // The site's crawler rules, behind the /blocked setup, which always lets /robots.txt through.
@@ -112,6 +118,7 @@ app.listen(port, (error) => {
 	console.log(`   /monitor runs ${call(config)}`);
 	console.log(`   /blocked runs ${call(blockedConfig)}`);
 	console.log(`   /charged runs ${call(chargedConfig)}, settling through the stand-in facilitator at /facilitator`);
+	console.log(`   /paths runs ${call(pathsConfig)}, settling the same way`);
 	console.log(`Listening on http://localhost:${port}`);
 	console.log(endpoints);
 	console.log("Name a visitor with a Demo-Visitor header:");

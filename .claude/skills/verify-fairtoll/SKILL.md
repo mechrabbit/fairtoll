@@ -5,7 +5,7 @@ description: Prove a Fairtoll change works by driving the real Express adapter, 
 
 # Verify Fairtoll
 
-Fairtoll is a library, so a user is a publisher who mounts its Express middleware and the bots and readers who request their pages. The demo server (`demo/serve.js`) is that publisher's site. It mounts the built package from `dist/` on four endpoints and answers every request with its method and path, so any change Fairtoll makes to a response is visible:
+Fairtoll is a library, so a user is a publisher who mounts its Express middleware and the bots and readers who request their pages. The demo server (`demo/serve.js`) is that publisher's site. It mounts the built package from `dist/` on five endpoints and answers every request with its method and path, so any change Fairtoll makes to a response is visible:
 
 | Endpoint | Setup |
 | --- | --- |
@@ -13,6 +13,7 @@ Fairtoll is a library, so a user is a publisher who mounts its Express middlewar
 | `/monitor` | `fairtoll(config)`: classify and let through |
 | `/blocked` | `config` plus `ai: "block"`: 403 for AI bots |
 | `/charged` | `config` plus `ai: "charge"`, $0.002 on Base Sepolia to `0x…dEaD`, settled by a stand-in facilitator at `/facilitator` on the same server |
+| `/paths` | `config` plus `ai: "allow"` and rules that charge $0.01 under `/paths/premium` and block under `/paths/drafts`, settled the same way |
 | `/robots.txt` | Behind the `/blocked` setup |
 
 `config` and logging come from a settings file, `demo/settings/default.json` (`fairtoll({})`) or `demo/settings/logging.json` (`fairtoll({}, { log })`). A new settings file is the way to drive a different config. No money moves and no wallet needs funds: the stand-in facilitator checks price, wallet and replay, not signatures.
