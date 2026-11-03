@@ -1,6 +1,8 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { allowsEverything, createCharger, parseConfig, screen, type Charge, type Charger, type EventSink, type FacilitatorConfig } from "../core/index.js";
+import { allowsEverything, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
+import type { Charger } from "../core/charge.js";
+import type { Charge } from "../core/config.js";
 
 export interface Options {
 	/**

@@ -70,6 +70,8 @@ try {
 	blocked = fairtoll(blockedConfig, options);
 	app.use("/blocked", blocked);
 	app.use("/charged", fairtoll(chargedConfig, chargedOptions));
+	// A site should mount Fairtoll at the root and scope it with rules. The demo mounts it on /paths only so that it
+	// doesn't also screen the other endpoints here a second time.
 	app.use("/paths", fairtoll(pathsConfig, chargedOptions));
 } catch (error) {
 	console.error(`Could not set up Fairtoll: ${error.message}`);

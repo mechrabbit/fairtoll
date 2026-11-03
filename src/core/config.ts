@@ -252,7 +252,10 @@ function unknownFieldErrors(input: Record<string, unknown>, known: readonly stri
  * is refused too, because it decodes to a "*" and would turn an exact path into a wildcard.
  */
 function isRulePath(value: unknown): value is string {
-	return typeof value === "string" && /^\/[^*]*$|^\/([^*]*\/)?\*$/.test(value) && !/%2a/i.test(value);
+	if (typeof value !== "string" || /%2a/i.test(value)) return false;
+	const exact = /^\/[^*]*$/; // "/about", with no "*"
+	const wildcard = /^\/([^*]*\/)?\*$/; // "/*" or "/premium/*", with no other "*"
+	return exact.test(value) || wildcard.test(value);
 }
 
 function isOneOf<T extends string>(values: readonly T[]) {
