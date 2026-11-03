@@ -4,7 +4,7 @@ The [README](README.md) sets what the package must do and how to decide what bel
 
 ## Code is a liability
 
-Fairtoll runs in a publisher's request path and handles payments. A bug here breaks someone's site or costs someone money, and complexity is where bugs hide. Treat every line you add, and every runtime dependency you pull in, as a cost the package carries from then on. The goal is code that is correct and stays maintainable. Fewer lines is a means to that, not the target.
+Fairtoll runs in a publisher's request path and handles payments. A bug here breaks someone's site or costs someone money, and complexity is where bugs hide. Treat every line you add, and every runtime dependency you pull in, as a cost the package carries from then on. The goal is code that is correct and stays maintainable. Fewer lines is a means to that, not the target. Being easy to verify is worth more than being short. A few plain lines that a reviewer can check at a glance beat one dense line they have to work out, and a value they can see checked beats one they have to trust.
 
 Default to not building. New code earns its place by meeting a concrete need that exists now, not one you anticipate. When you're unsure whether something is needed, leave it out and say so in a sentence, so a person can ask for it.
 
