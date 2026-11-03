@@ -75,7 +75,8 @@ type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok: false
 
 /**
  * Parsing has two steps. The first checks every field on its own and reports every error it finds. The second
- * runs only when every field is valid, and checks that whatever charges has the fields it needs.
+ * runs only when every field is valid, and checks that whatever charges has the fields it needs, so a missing
+ * charge field is reported only once the invalid fields are fixed.
  *
  * The charge fields are checked whenever they're set, even when `ai` isn't "charge", so switching `ai`
  * between "block" and "charge" is a one-word change.
@@ -132,7 +133,8 @@ function toConfig({ ai = "allow", price, payTo, network, rules }: Fields): Parse
 	if (topLevel.ok && allOk(rulePolicies)) {
 		return { ok: true, value: { ...topLevel.value, rules: rulePolicies.map((rule) => rule.value) } };
 	}
-	// Each policy that charges reports the same missing wallet or network errors, so each is listed once.
+	// Every policy that charges carries the same payTo and network error objects from `destination`. The Set
+	// compares them by identity, so each is listed once as long as they aren't copied.
 	const errors = new Set([topLevel, ...rulePolicies].flatMap((policy) => (policy.ok ? [] : policy.errors)));
 	return { ok: false, errors: [...errors] };
 }
