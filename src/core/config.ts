@@ -20,8 +20,8 @@ import { canonicalRulePath } from "./paths.js";
  * - Two rules can't have the same path.
  *
  * Matching a request:
- * - The request's path is compared ignoring case, a trailing slash and percent-encoding, so a bot can't reach a
- *   rule's page by writing its path another way (see `canonicalPath`).
+ * - A request's path is matched in canonical form, which ignores case, a trailing slash and percent-encoding,
+ *   so a bot can't reach a rule's page by writing its path another way (see `canonicalPath`).
  * - When several rules match, the most specific wins: an exact path, then the wildcard with the longest prefix.
  *   So the order of the rules never matters, and "/premium/free/*" inside "/premium/*" works wherever it is
  *   written.
@@ -84,40 +84,48 @@ export function parseConfig(input: unknown): ParseResult {
 	const price = readOptional(input, "price", isPrice, priceMessage);
 	const payTo = readOptional(input, "payTo", isWalletAddress, payToMessage);
 	const network = readOptional(input, "network", isNetwork, networkMessage);
-	const rules = parseRules(presentValue(input, "rules"), { hasTopLevelPrice: !isMissing(input, "price") });
+	const { rules: ruleInputs, errors: ruleErrors } = parseRules(presentValue(input, "rules"));
 
 	const errors = [
 		...unknownFieldErrors(input, knownFields, ""),
 		...errorsOf(ai, price, payTo, network),
-		...rules.errors,
-		...missingChargeFieldErrors(input, ai.value, rules.rules),
+		...ruleErrors,
+		...missingChargeFieldErrors(input, ai.value, ruleInputs),
 	];
 	if (errors.length > 0) return { ok: false, errors };
 
 	const topLevel = toPolicy(ai.value ?? "allow", price.value, payTo.value, network.value);
-	const parsedRules = rules.rules.map((rule) => {
+	const rules = ruleInputs.map((rule) => {
 		const policy = toPolicy(rule.ai, rule.price ?? price.value, payTo.value, network.value);
 		return { ...policy, path: rule.path };
 	});
-	return { ok: true, config: { ...topLevel, rules: parsedRules } };
+	return { ok: true, config: { ...topLevel, rules } };
 }
 
 /**
- * An error for each charge field that is missing although something charges. When the top-level `ai` charges,
- * it needs all three. When only a rule charges, the rule can carry its own price, so only the wallet and
- * network are needed.
+ * An error for each charge field that something charging needs and the config leaves out. Every check that
+ * `toPolicy` relies on is here, so a config that passes them can always be turned into policies.
+ * - When the top-level `ai` charges, it needs `price`, `payTo` and `network`.
+ * - When a rule charges, it needs the top-level `payTo` and `network`, and a price of its own or a top-level one.
  */
 function missingChargeFieldErrors(input: Record<string, unknown>, ai: Policy["ai"] | undefined, rules: readonly RuleInput[]): ConfigError[] {
-	let needed: string[] = [];
-	let message = "";
+	const errors: ConfigError[] = [];
+	const chargingRules = rules.filter((rule) => rule.ai === "charge");
 	if (ai === "charge") {
-		needed = chargeFields;
-		message = 'is needed when ai is "charge"';
-	} else if (rules.some((rule) => rule.ai === "charge")) {
-		needed = ["payTo", "network"];
-		message = 'is needed when a rule\'s ai is "charge"';
+		for (const name of chargeFields) {
+			if (isMissing(input, name)) errors.push({ field: name, message: 'is needed when ai is "charge"' });
+		}
+	} else if (chargingRules.length > 0) {
+		for (const name of ["payTo", "network"]) {
+			if (isMissing(input, name)) errors.push({ field: name, message: 'is needed when a rule\'s ai is "charge"' });
+		}
 	}
-	return needed.filter((name) => isMissing(input, name)).map((name) => ({ field: name, message }));
+	for (const rule of chargingRules) {
+		if (rule.price === undefined && isMissing(input, "price")) {
+			errors.push({ field: `${rule.at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' });
+		}
+	}
+	return errors;
 }
 
 /**
@@ -134,6 +142,8 @@ function toPolicy(ai: Policy["ai"], price: string | undefined, payTo: string | u
 
 /** A rule as written, once its fields are checked. */
 interface RuleInput {
+	/** Where the rule is in the config, such as "rules[0]", for errors. */
+	readonly at: string;
 	/** In canonical form. */
 	readonly path: string;
 	readonly ai: Policy["ai"];
@@ -147,10 +157,11 @@ interface ParsedRules {
 }
 
 /**
- * The rules that parse, and an error for each problem in any rule. An undefined or null `rules` is no rules.
- * `hasTopLevelPrice` says whether a rule that charges can leave out its own price.
+ * The rules whose fields are valid, and an error for each problem in any rule. An undefined or null `rules` is
+ * no rules. Whether a charging rule has the price, wallet and network it needs is checked in
+ * `missingChargeFieldErrors`, with the top-level fields.
  */
-function parseRules(value: unknown, { hasTopLevelPrice }: { hasTopLevelPrice: boolean }): ParsedRules {
+function parseRules(value: unknown): ParsedRules {
 	const rules: RuleInput[] = [];
 	const errors: ConfigError[] = [];
 	if (value === undefined) return { rules, errors };
@@ -175,9 +186,6 @@ function parseRules(value: unknown, { hasTopLevelPrice }: { hasTopLevelPrice: bo
 		for (const name of ["path", "ai"]) {
 			if (isMissing(item, name)) errors.push({ field: `${at}.${name}`, message: "is needed in every rule" });
 		}
-		if (ai.value === "charge" && isMissing(item, "price") && !hasTopLevelPrice) {
-			errors.push({ field: `${at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' });
-		}
 
 		if (path.value === undefined) return;
 		const canonical = canonicalRulePath(path.value);
@@ -188,7 +196,7 @@ function parseRules(value: unknown, { hasTopLevelPrice }: { hasTopLevelPrice: bo
 			errors.push({ field: `${at}.path`, message: `matches the same paths as rules[${earlier}]` });
 		}
 		if (ai.value === undefined) return;
-		rules.push({ path: canonical, ai: ai.value, price: price.value });
+		rules.push({ at, path: canonical, ai: ai.value, price: price.value });
 	});
 	return { rules, errors };
 }

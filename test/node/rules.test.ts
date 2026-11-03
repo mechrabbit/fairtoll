@@ -42,8 +42,8 @@ describe("hasDotDotSegment", () => {
 		["/premium/a/./x", false],
 		["/premium/a..b/x", false],
 		["/premium/x", false],
-	])("%s: %s", (path, climbs) => {
-		expect(hasDotDotSegment(path)).toBe(climbs);
+	])("%s has a .. segment: %s", (path, hasDotDot) => {
+		expect(hasDotDotSegment(path)).toBe(hasDotDot);
 	});
 });
 
@@ -97,8 +97,14 @@ describe("ruleFor", () => {
 });
 
 /**
- * Generated configs and paths. A small seeded generator, so a failure names a seed that reproduces it, over
- * few enough segments that rules overlap often.
+ * Makes random configs and request paths from a seed, so a failing seed reproduces the failure.
+ * - `rule()` is one rule: a path built from four segment names, exact or ending in "/*", and an ai, with a price
+ *   half the time it charges. With so few names, rules often overlap.
+ * - `rules()` is up to four rules with different paths.
+ * - `input(rules)` is a whole config with a random top-level ai, a price, a wallet and a network.
+ * - `requestPath()` is a path from the same names, sometimes upper-cased, percent-encoded, with a trailing slash,
+ *   or with a "..", as a bot could send it.
+ * - `next()` is the next random number, from 0 to 1.
  */
 function generator(seed: number) {
 	let state = seed;
@@ -145,7 +151,9 @@ describe("rules over generated configs", () => {
 	const decisions = (config: Config, paths: readonly string[]) =>
 		paths.map((path) => [decide(config, "unverifiedBot", false, path), decide(config, "unverifiedBot", true, path), decide(config, "human", false, path)]);
 
-	test("removing a rule restores every decision, and the rule changed only the paths it matches", () => {
+	// Decisions depend only on the config, so removing a rule gives back exactly the decisions from before it was
+	// added. What needs showing is that adding a rule changed nothing outside its own paths.
+	test("adding a rule anywhere in the list changes decisions only on the paths it matches", () => {
 		for (const seed of seeds) {
 			const gen = generator(seed);
 			const before = gen.rules();
@@ -154,12 +162,10 @@ describe("rules over generated configs", () => {
 			if (before.some((r) => r.path === added.path)) continue;
 			const at = Math.floor(gen.next() * (before.length + 1));
 			const withRule = { ...base, rules: [...before.slice(0, at), added, ...before.slice(at)] };
-			const removed = { ...withRule, rules: withRule.rules.filter((r) => r !== added) };
 			const paths = Array.from({ length: 30 }, gen.requestPath);
 
-			expect(decisions(parsed(removed), paths), `seed ${seed}`).toEqual(decisions(parsed(base), paths));
 			const addedRule = parsed({ rules: [added], payTo: wallet, network: "base-sepolia", price: "0.002" }).rules;
-			// A rule can also block every path with "..", wherever it is, so those are left out.
+			// Paths with ".." are left out, because a rule that blocks or charges also blocks every one of them.
 			const unmatched = paths.filter((path) => ruleFor(addedRule, path) === undefined && !hasDotDotSegment(path));
 			expect(decisions(parsed(withRule), unmatched), `seed ${seed}`).toEqual(decisions(parsed(base), unmatched));
 		}

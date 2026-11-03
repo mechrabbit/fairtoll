@@ -1,9 +1,11 @@
 /**
- * The page a path names, the way a static file server or a case-insensitive router finds it: percent-decoded,
- * lowercased, with backslashes as slashes, empty and "." segments dropped, ".." segments resolved, and no
- * trailing slash. Rules match this form, so /%70remium/a, /PREMIUM/a, //premium/a and /free/../premium/a are
- * all under /premium/*, as express.static would serve them. A segment that isn't valid percent-encoding is
- * left as it is.
+ * The path in canonical form, which is how a static file server or a case-insensitive router reads it:
+ * - percent-decoded once, so %70 becomes p but %2570 becomes %70;
+ * - lowercased, with backslashes as slashes;
+ * - with empty and "." segments dropped, ".." segments resolved, and no trailing slash.
+ *
+ * Rules match this form, so /%70remium/a, /PREMIUM/a, //premium/a and /free/../premium/a are all under
+ * /premium/*, as express.static would serve them. A segment that isn't valid percent-encoding is left as it is.
  */
 export function canonicalPath(path: string): string {
 	const resolved: string[] = [];
@@ -15,28 +17,27 @@ export function canonicalPath(path: string): string {
 }
 
 /**
- * The rule for a path, out of rules whose paths are already canonical (see `canonicalRulePath`). The most
- * specific match wins: a rule for the exact path, then the wildcard with the longest prefix. So the order of
- * the rules never matters, and no two rules can tie, because `parseConfig` rejects two with the same path.
+ * The most specific rule that matches the path, or undefined if none does. The rules' paths must already be
+ * canonical (see `canonicalRulePath`). The `Config` type describes how rules match.
  */
 export function ruleFor<R extends { readonly path: string }>(rules: readonly R[], path: string): R | undefined {
 	return rules.length === 0 ? undefined : mostSpecificRule(rules, canonicalPath(path));
 }
 
-/** The rule for a page, which is a path in canonical form. */
-function mostSpecificRule<R extends { readonly path: string }>(rules: readonly R[], page: string): R | undefined {
+/** The rule for a path that is already in canonical form. */
+function mostSpecificRule<R extends { readonly path: string }>(rules: readonly R[], canonical: string): R | undefined {
 	// An exact rule is the most specific match there can be.
-	const exact = rules.find((rule) => rule.path === page);
+	const exact = rules.find((rule) => rule.path === canonical);
 	if (exact !== undefined) return exact;
 
-	// Otherwise, of the wildcards that cover the page, the one with the longest prefix.
+	// Otherwise, of the wildcards that cover the path, the one with the longest prefix.
 	let best: R | undefined;
 	let bestPrefixLength = -1;
 	for (const rule of rules) {
 		if (!rule.path.endsWith("/*")) continue;
-		// "/premium/*" has the prefix "/premium", and "/*" has the prefix "", which covers every page.
+		// "/premium/*" has the prefix "/premium", and "/*" has the prefix "", which covers every path.
 		const prefix = rule.path.slice(0, -2);
-		const covers = page === prefix || page.startsWith(`${prefix}/`);
+		const covers = canonical === prefix || canonical.startsWith(`${prefix}/`);
 		if (covers && prefix.length > bestPrefixLength) {
 			best = rule;
 			bestPrefixLength = prefix.length;
@@ -63,7 +64,8 @@ export function hasDotDotSegment(path: string): boolean {
 
 /** The path's segments, decoded and lowercased, with backslashes as slashes, and without empty or "." segments. */
 function decodedSegments(path: string): string[] {
-	// Decoded one segment at a time, so a segment that isn't valid percent-encoding doesn't stop the rest decoding.
+	// Decoded once, one segment at a time, so a segment that isn't valid percent-encoding doesn't stop the rest
+	// decoding.
 	// A decoded %2f or %5c then splits its segment in two, as it does for a static file server.
 	const decoded = path.split("/").map(decodeSegment).join("/");
 	const withSlashes = decoded.replaceAll("\\", "/").toLowerCase();

@@ -8,21 +8,26 @@ export type Action = { readonly kind: "allow" } | { readonly kind: "block" } | {
 const allow: Action = { kind: "allow" };
 
 /**
- * Every request is charged except a CORS preflight, which is let through because a 402 there would break
+ * What to do with an AI request: allow it, block it, or charge it the given price. A human request is always
+ * allowed. The policy is the most specific rule that matches the path, or the top-level `ai` if none does.
+ *
+ * When charging, every request is charged except a CORS preflight, which is let through because a 402 there would break
  * every cross-origin request to the page. Many apps serve the page whatever the method, so a free POST or
  * other OPTIONS would be a way around the price. A bot can send a preflight's header too, so an app that
  * answers a preflight with the page still gives the page away.
  *
  * When the config has rules and doesn't allow every path, an AI request whose path has a ".." segment is
  * blocked, preflight or not, because the app could serve it as a page other than the one the rules matched
- * (see `hasDotDotSegment`). Browsers and crawlers resolve dot segments before sending, so a real visitor's path almost
- * never has one.
+ * (see `hasDotDotSegment`). Browsers and crawlers resolve dot segments before sending, so a real visitor's path
+ * almost never has one.
  */
 export function decide(config: Config, cls: RequestClass, preflight: boolean, path: string): Action {
 	if (cls === "human") return allow;
 
-	const rulesBlockOrCharge = config.rules.length > 0 && !allowsEverything(config);
-	if (rulesBlockOrCharge && hasDotDotSegment(path)) return { kind: "block" };
+	// Only when there are rules, so a config without rules behaves as before, and only when something blocks or
+	// charges, so an observe-only config never changes a response.
+	const blocksDotDotPaths = config.rules.length > 0 && !allowsEverything(config);
+	if (blocksDotDotPaths && hasDotDotSegment(path)) return { kind: "block" };
 
 	// The path's most specific rule, or the top-level policy when no rule matches.
 	const policy = ruleFor(config.rules, path) ?? config;

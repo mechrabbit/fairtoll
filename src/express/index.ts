@@ -42,14 +42,22 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
-	// The chargers are made here so a charge that can't work, such as on "base" without a facilitator, throws at startup.
-	// Keyed by the charge's values, so policies with the same charge share a charger and a lookup can't miss.
-	const chargeKey = (charge: Charge) => `${charge.price} ${charge.payTo} ${charge.network}`;
+	// One charger for each distinct price, wallet and network. `chargerFor` makes a charger the first time it sees
+	// a charge, so it always returns one.
 	const chargers = new Map<string, Charger>();
+	const chargerFor = (charge: Charge): Charger => {
+		const key = `${charge.price} ${charge.payTo} ${charge.network}`;
+		let charger = chargers.get(key);
+		if (charger === undefined) {
+			charger = createCharger(charge, facilitator);
+			chargers.set(key, charger);
+		}
+		return charger;
+	};
+	// Every charge a request can get comes from one of these policies. Making their chargers now means a charge
+	// that can't work, such as on "base" without a facilitator, throws at startup and not on a request.
 	for (const policy of [config, ...config.rules]) {
-		if (policy.ai !== "charge") continue;
-		const key = chargeKey(policy.charge);
-		if (!chargers.has(key)) chargers.set(key, createCharger(policy.charge, facilitator));
+		if (policy.ai === "charge") chargerFor(policy.charge);
 	}
 	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
 
@@ -72,8 +80,8 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
 			return;
 		}
-		const charge = action.kind === "charge" ? chargers.get(chargeKey(action.charge)) : undefined;
-		if (charge) {
+		if (action.kind === "charge") {
+			const charge = chargerFor(action.charge);
 			// Express catches anything the outcome's handler throws, because the promise is returned to it.
 			return charge(request, req.method, path).then(
 				(outcome) => {
