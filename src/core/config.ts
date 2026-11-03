@@ -59,8 +59,7 @@ export interface ConfigError {
 
 export type ParseResult = { readonly ok: true; readonly config: Config } | { readonly ok: false; readonly errors: readonly ConfigError[] };
 
-const chargeFields = ["price", "payTo", "network"];
-const knownFields = ["ai", ...chargeFields, "rules"];
+const knownFields = ["ai", "price", "payTo", "network", "rules"];
 const ruleFields = ["path", "ai", "price"];
 
 const isAi = isOneOf(["allow", "block", "charge"] as const);
@@ -71,7 +70,13 @@ const payToMessage = "must be a wallet address other than the zero address: 0x a
 const rulePathMessage = 'must be a path starting with "/", with "*" only as a final "/*", such as "/premium/*"';
 const priceMessage = 'must be a price in dollars above zero, with at most 6 decimals, written as a string such as "0.002"';
 
+/** A value that passed its checks, or the errors that say why it didn't. A failure always has an error. */
+type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly errors: readonly ConfigError[] };
+
 /**
+ * Parsing has two steps. The first checks every field on its own and reports every error it finds. The second
+ * runs only when every field is valid, and checks that whatever charges has the fields it needs.
+ *
  * The charge fields are checked whenever they're set, even when `ai` isn't "charge", so switching `ai`
  * between "block" and "charge" is a one-word change.
  */
@@ -79,65 +84,85 @@ export function parseConfig(input: unknown): ParseResult {
 	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ field: "config", message: "must be a plain object" }] };
 	}
+	const fields = parseFields(input);
+	if (!fields.ok) return fields;
+	const config = toConfig(fields.value);
+	return config.ok ? { ok: true, config: config.value } : config;
+}
 
+/** The config's fields, each valid on its own. Any of them can still be missing. */
+interface Fields {
+	readonly ai: Policy["ai"] | undefined;
+	readonly price: string | undefined;
+	readonly payTo: string | undefined;
+	readonly network: Network | undefined;
+	readonly rules: readonly RuleInput[];
+}
+
+function parseFields(input: Record<string, unknown>): Parsed<Fields> {
+	const unknownFields = unknownFieldErrors(input, knownFields, "");
 	const ai = readOptional(input, "ai", isAi, aiMessage);
 	const price = readOptional(input, "price", isPrice, priceMessage);
 	const payTo = readOptional(input, "payTo", isWalletAddress, payToMessage);
 	const network = readOptional(input, "network", isNetwork, networkMessage);
-	const { rules: ruleInputs, errors: ruleErrors } = parseRules(presentValue(input, "rules"));
+	const rules = parseRules(presentValue(input, "rules"));
 
-	const errors = [
-		...unknownFieldErrors(input, knownFields, ""),
-		...errorsOf(ai, price, payTo, network),
-		...ruleErrors,
-		...missingChargeFieldErrors(input, ai.value, ruleInputs),
-	];
-	if (errors.length > 0) return { ok: false, errors };
-
-	const topLevel = toPolicy(ai.value ?? "allow", price.value, payTo.value, network.value);
-	const rules = ruleInputs.map((rule) => {
-		const policy = toPolicy(rule.ai, rule.price ?? price.value, payTo.value, network.value);
-		return { ...policy, path: rule.path };
-	});
-	return { ok: true, config: { ...topLevel, rules } };
+	if (unknownFields.length === 0 && ai.ok && price.ok && payTo.ok && network.ok && rules.ok) {
+		return { ok: true, value: { ai: ai.value, price: price.value, payTo: payTo.value, network: network.value, rules: rules.value } };
+	}
+	return { ok: false, errors: [...unknownFields, ...errorsOf(ai, price, payTo, network, rules)] };
 }
 
 /**
- * An error for each charge field that something charging needs and the config leaves out. Every check that
- * `toPolicy` relies on is here, so a config that passes them can always be turned into policies.
+ * The config, or an error for each charge field that something charging needs and the config leaves out.
  * - When the top-level `ai` charges, it needs `price`, `payTo` and `network`.
  * - When a rule charges, it needs the top-level `payTo` and `network`, and a price of its own or a top-level one.
  */
-function missingChargeFieldErrors(input: Record<string, unknown>, ai: Policy["ai"] | undefined, rules: readonly RuleInput[]): ConfigError[] {
+function toConfig({ ai = "allow", price, payTo, network, rules }: Fields): Parsed<Config> {
+	const neededBy = ai === "charge" ? 'is needed when ai is "charge"' : 'is needed when a rule\'s ai is "charge"';
+	const destination = destinationOf(payTo, network, neededBy);
+
+	const topLevel = policyOf(ai, price, destination, { field: "price", message: 'is needed when ai is "charge"' });
+	const rulePolicies = rules.map((rule): Parsed<Rule> => {
+		const noPrice = { field: `${rule.at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' };
+		const policy = policyOf(rule.ai, rule.price ?? price, destination, noPrice);
+		return policy.ok ? { ok: true, value: { ...policy.value, path: rule.path } } : policy;
+	});
+
+	if (topLevel.ok && allOk(rulePolicies)) {
+		return { ok: true, value: { ...topLevel.value, rules: rulePolicies.map((rule) => rule.value) } };
+	}
+	// Each policy that charges reports the same missing wallet or network errors, so each is listed once.
+	const errors = new Set([topLevel, ...rulePolicies].flatMap((policy) => (policy.ok ? [] : policy.errors)));
+	return { ok: false, errors: [...errors] };
+}
+
+/** Where every charge's money goes: the top-level `payTo`, on the top-level `network`. */
+interface Destination {
+	readonly payTo: string;
+	readonly network: Network;
+}
+
+/** The destination, or an error with `message` for each of `payTo` and `network` that is missing. */
+function destinationOf(payTo: string | undefined, network: Network | undefined, message: string): Parsed<Destination> {
+	if (payTo !== undefined && network !== undefined) return { ok: true, value: { payTo, network } };
 	const errors: ConfigError[] = [];
-	const chargingRules = rules.filter((rule) => rule.ai === "charge");
-	if (ai === "charge") {
-		for (const name of chargeFields) {
-			if (isMissing(input, name)) errors.push({ field: name, message: 'is needed when ai is "charge"' });
-		}
-	} else if (chargingRules.length > 0) {
-		for (const name of ["payTo", "network"]) {
-			if (isMissing(input, name)) errors.push({ field: name, message: 'is needed when a rule\'s ai is "charge"' });
-		}
-	}
-	for (const rule of chargingRules) {
-		if (rule.price === undefined && isMissing(input, "price")) {
-			errors.push({ field: `${rule.at}.price`, message: 'is needed when the rule\'s ai is "charge" and there is no top-level price' });
-		}
-	}
-	return errors;
+	if (payTo === undefined) errors.push({ field: "payTo", message });
+	if (network === undefined) errors.push({ field: "network", message });
+	return { ok: false, errors };
 }
 
 /**
- * The policy for an `ai`. When `ai` is "charge", `parseConfig` has already reported any charge field that is
- * missing, so this only throws if those checks have a bug.
+ * The policy for an `ai`. A policy that charges fails with `noPrice` when it has no price, and with the
+ * destination's errors when the destination is incomplete.
  */
-function toPolicy(ai: Policy["ai"], price: string | undefined, payTo: string | undefined, network: Network | undefined): Policy {
-	if (ai !== "charge") return { ai };
-	if (price === undefined || payTo === undefined || network === undefined) {
-		throw new Error("fairtoll: a charge is missing a field that parseConfig should have reported");
-	}
-	return { ai, charge: { price, payTo, network } };
+function policyOf(ai: Policy["ai"], price: string | undefined, destination: Parsed<Destination>, noPrice: ConfigError): Parsed<Policy> {
+	if (ai !== "charge") return { ok: true, value: { ai } };
+	if (price !== undefined && destination.ok) return { ok: true, value: { ai, charge: { price, ...destination.value } } };
+	const errors: ConfigError[] = [];
+	if (price === undefined) errors.push(noPrice);
+	if (!destination.ok) errors.push(...destination.errors);
+	return { ok: false, errors };
 }
 
 /** A rule as written, once its fields are checked. */
@@ -151,25 +176,16 @@ interface RuleInput {
 	readonly price: string | undefined;
 }
 
-interface ParsedRules {
-	readonly rules: RuleInput[];
-	readonly errors: ConfigError[];
-}
-
 /**
- * The rules whose fields are valid, and an error for each problem in any rule. An undefined or null `rules` is
- * no rules. Whether a charging rule has the price, wallet and network it needs is checked in
- * `missingChargeFieldErrors`, with the top-level fields.
+ * The rules, or an error for each problem in any rule. An undefined or null `rules` is no rules. Whether a
+ * charging rule has the price, wallet and network it needs is checked in `toConfig`, with the top-level fields.
  */
-function parseRules(value: unknown): ParsedRules {
+function parseRules(value: unknown): Parsed<RuleInput[]> {
+	if (value === undefined) return { ok: true, value: [] };
+	if (!Array.isArray(value)) return { ok: false, errors: [{ field: "rules", message: "must be an array of rules" }] };
+
 	const rules: RuleInput[] = [];
 	const errors: ConfigError[] = [];
-	if (value === undefined) return { rules, errors };
-	if (!Array.isArray(value)) {
-		errors.push({ field: "rules", message: "must be an array of rules" });
-		return { rules, errors };
-	}
-
 	// The canonical path of each rule so far, and the rule's index, to find two rules for the same paths.
 	const seen = new Map<string, number>();
 	value.forEach((item: unknown, index) => {
@@ -179,15 +195,12 @@ function parseRules(value: unknown): ParsedRules {
 			return;
 		}
 
-		const path = readOptional(item, "path", isRulePath, rulePathMessage, `${at}.path`);
-		const ai = readOptional(item, "ai", isAi, aiMessage, `${at}.ai`);
+		const path = readRuleField(item, "path", isRulePath, rulePathMessage, at);
+		const ai = readRuleField(item, "ai", isAi, aiMessage, at);
 		const price = readOptional(item, "price", isPrice, priceMessage, `${at}.price`);
 		errors.push(...unknownFieldErrors(item, ruleFields, `${at}.`), ...errorsOf(path, ai, price));
-		for (const name of ["path", "ai"]) {
-			if (isMissing(item, name)) errors.push({ field: `${at}.${name}`, message: "is needed in every rule" });
-		}
 
-		if (path.value === undefined) return;
+		if (!path.ok) return;
 		const canonical = canonicalRulePath(path.value);
 		const earlier = seen.get(canonical);
 		if (earlier === undefined) {
@@ -195,21 +208,14 @@ function parseRules(value: unknown): ParsedRules {
 		} else {
 			errors.push({ field: `${at}.path`, message: `matches the same paths as rules[${earlier}]` });
 		}
-		if (ai.value === undefined) return;
-		rules.push({ at, path: canonical, ai: ai.value, price: price.value });
+		if (ai.ok && price.ok) rules.push({ at, path: canonical, ai: ai.value, price: price.value });
 	});
-	return { rules, errors };
-}
-
-/** What reading one optional field found: its value if it's set and valid, and an error if it's set but invalid. */
-interface FieldRead<T> {
-	readonly value: T | undefined;
-	readonly error: ConfigError | undefined;
+	return errors.length === 0 ? { ok: true, value: rules } : { ok: false, errors };
 }
 
 /**
- * Reads an optional field and checks it with `valid`. A missing field (see `isMissing`) has no value and no
- * error. An invalid one has no value, and an error naming `errorField`, such as "rules[0].price".
+ * Reads an optional field and checks it with `valid`. A missing field (see `presentValue`) is undefined. An
+ * invalid one is an error naming `errorField`, such as "rules[0].price".
  */
 function readOptional<T>(
 	input: Record<string, unknown>,
@@ -217,15 +223,27 @@ function readOptional<T>(
 	valid: (value: unknown) => value is T,
 	message: string,
 	errorField = name,
-): FieldRead<T> {
+): Parsed<T | undefined> {
 	const value = presentValue(input, name);
-	if (value === undefined) return { value: undefined, error: undefined };
-	if (valid(value)) return { value, error: undefined };
-	return { value: undefined, error: { field: errorField, message } };
+	if (value === undefined) return { ok: true, value: undefined };
+	if (valid(value)) return { ok: true, value };
+	return { ok: false, errors: [{ field: errorField, message }] };
 }
 
-function errorsOf(...reads: readonly FieldRead<unknown>[]): ConfigError[] {
-	return reads.flatMap((read) => (read.error === undefined ? [] : [read.error]));
+/** Reads a field every rule needs, such as "path", from the rule at `at`. A missing one is an error. */
+function readRuleField<T>(rule: Record<string, unknown>, name: string, valid: (value: unknown) => value is T, message: string, at: string): Parsed<T> {
+	const value = presentValue(rule, name);
+	if (value === undefined) return { ok: false, errors: [{ field: `${at}.${name}`, message: "is needed in every rule" }] };
+	if (valid(value)) return { ok: true, value };
+	return { ok: false, errors: [{ field: `${at}.${name}`, message }] };
+}
+
+function errorsOf(...results: readonly Parsed<unknown>[]): ConfigError[] {
+	return results.flatMap((result) => (result.ok ? [] : result.errors));
+}
+
+function allOk<T>(results: readonly Parsed<T>[]): results is { readonly ok: true; readonly value: T }[] {
+	return results.every((result) => result.ok);
 }
 
 /**
@@ -235,10 +253,6 @@ function errorsOf(...reads: readonly FieldRead<unknown>[]): ConfigError[] {
 function presentValue(input: Record<string, unknown>, name: string): unknown {
 	if (!Object.hasOwn(input, name)) return undefined;
 	return input[name] ?? undefined;
-}
-
-function isMissing(input: Record<string, unknown>, name: string): boolean {
-	return presentValue(input, name) === undefined;
 }
 
 function unknownFieldErrors(input: Record<string, unknown>, known: readonly string[], prefix: string): ConfigError[] {
