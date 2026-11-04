@@ -65,7 +65,7 @@ Always add Fairtoll with `app.use(fairtoll(...))`, before anything else that ser
 | `network` | `"base"` for real USDC, or `"base-sepolia"` for test USDC. |
 | `rules` | A list of rules, each deciding `ai` for some paths. |
 
-A mistake in the config throws when you call `fairtoll()`, so it shows when your app starts, not on a request. The error lists every problem:
+A mistake in the config throws when you call `fairtoll()`, so it shows when your app starts, not on a request. The error lists the problems it finds:
 
 ```
 Invalid fairtoll config:
@@ -141,12 +141,13 @@ Here is what a charged request goes through:
 
 A payment that was already used, or names the wrong price or wallet, gets the 402 again.
 
-Fairtoll charges every request on a charged path, whatever the method and whatever your app answers, so a 404, an image or a form post there costs the bot too. Use rules to charge only the paths that hold your content. Two requests are never charged:
+Fairtoll charges every request on a charged path, whatever the method and whatever your app answers, so a 404, an image or a form post there costs the bot too. Use rules to charge only the paths that hold your content. Three kinds of request are never charged:
 
 - A CORS preflight, an `OPTIONS` request with an `Access-Control-Request-Method` header, is let through, because a 402 would break cross-origin requests to the page. Don't answer a preflight with the page itself, because a bot can send one too.
 - A `HEAD` request gets the 402 and is never charged, because it has no page to pay for.
+- `/robots.txt` is always served free, so a bot can still read your crawl rules.
 
-If the facilitator can't be reached, Fairtoll serves the page unpaid and prints the error, so an outage never takes your site down. It waits 30 seconds before trying a facilitator that failed to start again.
+If the facilitator can't be reached, Fairtoll serves the page unpaid and prints the error, so an outage never takes your site down. It waits 30 seconds before trying a facilitator that failed to start again. A facilitator that rejects the payment or answers with an error status gets the bot the 402, not the page.
 
 ### The facilitator
 
@@ -169,7 +170,7 @@ Any facilitator works if you pass an object with its `url`, along with any optio
 
 ### Try charging on testnet first
 
-Charge on `"base-sepolia"` before `"base"`, and your config works the same with test USDC, which has no value.
+Your config works the same on `"base-sepolia"`, with test USDC that has no value, so charge there before `"base"`.
 
 <!-- TODO(#48): describe the testnet command once it exists. -->
 A command that sends a paid request through your config on testnet, so you see each step settle before you charge real money, is coming in [#48](https://github.com/mechrabbit/fairtoll/issues/48).
