@@ -91,11 +91,11 @@ export async function runTestnet(input: unknown, key: string, print: (line: stri
 	let rejection: string | undefined;
 	try {
 		const verified = await new HTTPFacilitatorClient({ url: facilitatorUrl, timeoutMs: verifyTimeoutMs }).verify(payload, payload.accepted);
-		if (!verified.isValid) rejection = [verified.invalidReason, verified.invalidMessage].filter(Boolean).join(": ") || "no reason given";
+		if (!verified.isValid) rejection = reasonOf(verified.invalidReason, verified.invalidMessage);
 	} catch (error) {
 		// x402 throws a rejection that comes with an error status, rather than returning it.
 		if (!(error instanceof VerifyError)) return failed(print, "payment verified", `the facilitator could not verify the payment: ${messageOf(error)}`);
-		rejection = error.message;
+		rejection = reasonOf(error.invalidReason, error.invalidMessage);
 	}
 	if (rejection !== undefined) {
 		const hint = /insufficient|balance|funds/i.test(rejection) ? `\n  The wallet ${account.address} has too little test USDC. Get test USDC for Base Sepolia at https://faucet.circle.com, then run this again.` : "";
@@ -150,10 +150,20 @@ function chargedPath(config: Config): { path: string; charge: Charge } | undefin
 function rejectionOf(agent: x402HTTPClient, headers: Record<string, string>): string {
 	try {
 		const settlement = agent.getPaymentSettleResponse(headerReader(headers));
-		return [settlement.errorReason, settlement.errorMessage].filter(Boolean).join(": ") || "no reason given";
+		return reasonOf(settlement.errorReason, settlement.errorMessage);
 	} catch {
 		return agent.getPaymentRequiredResponse(headerReader(headers)).error ?? "no reason given";
 	}
+}
+
+/**
+ * A facilitator's error code and the short form of its message. x402.org passes on viem's whole error, which
+ * runs to many lines of request dump, and whose "Details:" line holds the cause, such as "replacement
+ * transaction underpriced". Without one, the message's first line is kept.
+ */
+function reasonOf(code: string | undefined, message: string | undefined): string {
+	const short = message && (/^Details: (.+)$/m.exec(message)?.[1] ?? message.split("\n")[0]);
+	return [code, short].filter(Boolean).join(": ") || "no reason given";
 }
 
 function failed(print: (line: string) => void, step: string, reason: string): false {

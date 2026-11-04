@@ -103,16 +103,31 @@ describe("when a step fails, it names the step and the reason", () => {
 		expect(output).toMatch(/✗ 402 received failed: the facilitator could not be reached/);
 	});
 
-	test("a settlement the facilitator rejects fails the settled step with its reason", async () => {
+	test("a settlement the facilitator rejects fails the settled step with its reason, without the facilitator's error dump", async () => {
+		// Shortened from what x402.org answered on a real run, which passes on viem's whole error.
+		const errorMessage = [
+			"Missing or invalid parameters.",
+			"Double check you have provided the correct parameters.",
+			"",
+			"URL: https://sepolia.base.org",
+			'Request body: {"method":"eth_sendRawTransaction","params":["0x02f9"]}',
+			"Docs: https://viem.sh/docs/contract/writeContract",
+			"Details: replacement transaction underpriced",
+			"Version: viem@2.48.11",
+		].join("\n");
 		const realFetch = globalThis.fetch;
 		vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
 			String(input).endsWith("/settle")
-				? Promise.resolve(Response.json({ success: false, errorReason: "transaction_failed", transaction: "", network: "eip155:84532" }))
+				? Promise.resolve(
+						Response.json({ success: false, errorReason: "invalid_exact_evm_transaction_failed", errorMessage, transaction: "", network: "eip155:84532" }),
+					)
 				: realFetch(input, init),
 		);
 		const { ok, output } = await run(charging);
 		expect(ok).toBe(false);
-		expect(output).toMatch(/✗ settled failed: the facilitator did not settle the payment: transaction_failed/);
+		expect(output.split("\n").at(-1)).toBe(
+			"✗ settled failed: the facilitator did not settle the payment: invalid_exact_evm_transaction_failed: replacement transaction underpriced",
+		);
 	});
 });
 
