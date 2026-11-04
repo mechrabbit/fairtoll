@@ -51,6 +51,12 @@ test("it pays for a path a rule charges, and skips one a more specific rule allo
 	expect(output).toContain("Paying for /premium/fairtoll-testnet on Base Sepolia");
 });
 
+test("it pays for an exact rule whose path has a percent sign", async () => {
+	const { ok, output } = await run({ payTo, network: "base-sepolia", rules: [{ path: "/a%2520b", ai: "charge", price: "0.05" }] });
+	expect(ok).toBe(true);
+	expect(output).toContain("✓ 402 received: $0.05 in USDC");
+});
+
 describe("it can't move mainnet funds", () => {
 	test('a config that charges on "base" is run on Base Sepolia', async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -76,11 +82,12 @@ describe("it can't move mainnet funds", () => {
 });
 
 describe("when a step fails, it names the step and the reason", () => {
-	test("a wallet with no test USDC fails verification, says where to get some, and nothing settles", async () => {
+	// x402 returns a rejection that comes with a 200, and throws one that comes with an error status.
+	test.each([200, 400])("a wallet with no test USDC fails verification with a %i, says where to get some, and nothing settles", async (status) => {
 		const realFetch = globalThis.fetch;
 		vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
 			String(input).endsWith("/verify")
-				? Promise.resolve(Response.json({ isValid: false, invalidReason: "insufficient_funds", payer: payTo }))
+				? Promise.resolve(Response.json({ isValid: false, invalidReason: "insufficient_funds", payer: payTo }, { status }))
 				: realFetch(input, init),
 		);
 		const { ok, output } = await run(charging);
@@ -118,7 +125,7 @@ describe("it stops before paying", () => {
 		expect(await run({})).toMatchObject({ ok: false, output: expect.stringContaining("charges no path") });
 	});
 
-	test("on a key that isn't a private key", async () => {
-		expect(await run(charging, "not-a-key")).toMatchObject({ ok: false, output: expect.stringContaining("FAIRTOLL_TESTNET_KEY must be") });
+	test.each(["not-a-key", `0x${"0".repeat(64)}`])("on a key that isn't a private key: %s", async (key) => {
+		expect(await run(charging, key)).toMatchObject({ ok: false, output: expect.stringContaining("FAIRTOLL_TESTNET_KEY must be") });
 	});
 });

@@ -24,7 +24,7 @@ The run always charges on Base Sepolia, even when the config's `network` is `"ba
 
 ## Getting a test wallet and test USDC
 
-1. Make a new wallet. Any wallet app that can export a private key works, or Fairtoll's own dependencies can make one:
+1. Make a new wallet. Any wallet app that can export a private key works, or Fairtoll's own dependencies can make one, run from the project that has Fairtoll installed:
 
    ```sh
    node --input-type=module -e "import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'; const key = generatePrivateKey(); console.log(key, privateKeyToAccount(key).address)"
