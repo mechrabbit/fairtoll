@@ -17,7 +17,7 @@ Fairtoll is a library, so a user is a publisher who mounts its Express middlewar
 
 `config` and logging come from a settings file, `demo/settings/default.json` (`fairtoll({})`) or `demo/settings/logging.json` (`fairtoll({}, { log })`). A new settings file is the way to drive a different config. No money moves and no wallet needs funds: the stand-in facilitator checks price, wallet and replay, not signatures.
 
-Other surfaces: the Cloudflare Worker adapter has no demo yet, so it is covered only by `npm test` (the `worker` project). The setup CLI in the README's scope doesn't exist yet. `demo/scenarios/*.sh` are human-readable transcripts on a fixed port; for proof use the helper below, which isolates runs and splits evidence per request.
+Other surfaces: the Cloudflare Worker adapter has no demo yet, so it is covered only by `npm test` (the `worker` project). The setup CLI in CONTRIBUTING.md's scope doesn't exist yet. `demo/scenarios/*.sh` are human-readable transcripts on a fixed port; for proof use the helper below, which isolates runs and splits evidence per request.
 
 The feature map in [features/README.md](features/README.md) lists what to drive. Read it before choosing what to prove.
 
