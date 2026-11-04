@@ -20,8 +20,6 @@ const agentUserAgent = "Fairtoll-Testnet/1 (paying agent; compatible; ChatGPT-Us
 /** As long as the charger waits for the facilitator, rather than x402's default of 90 seconds. */
 const verifyTimeoutMs = 10_000;
 
-const faucetHint = "Get test USDC for Base Sepolia at https://faucet.circle.com, then run this again.";
-
 /**
  * Runs the publisher's config on Base Sepolia and pays for one charged page with the test wallet whose
  * private key is `key`, printing each step: 402 received, payment sent, payment verified, settled, page
@@ -100,7 +98,7 @@ export async function runTestnet(input: unknown, key: string, print: (line: stri
 		rejection = error.message;
 	}
 	if (rejection !== undefined) {
-		const hint = /insufficient|balance|funds/i.test(rejection) ? `\n  The wallet ${account.address} has too little test USDC. ${faucetHint}` : "";
+		const hint = /insufficient|balance|funds/i.test(rejection) ? `\n  The wallet ${account.address} has too little test USDC. Get test USDC for Base Sepolia at https://faucet.circle.com, then run this again.` : "";
 		return failed(print, "payment verified", `the facilitator rejected the payment: ${rejection}${hint}`);
 	}
 	print("✓ payment verified by the facilitator");
@@ -112,7 +110,6 @@ export async function runTestnet(input: unknown, key: string, print: (line: stri
 	try {
 		paid = await charger(request(signature), "GET", target.path);
 	} catch (error) {
-		// The facilitator may have sent the transfer before it stopped answering, so a second run could pay twice.
 		const check = `Check https://sepolia.basescan.org/address/${account.address} before running this again, because the payment may still settle.`;
 		return failed(print, "settled", `the facilitator did not answer: ${messageOf(error)}\n  ${check}`);
 	}

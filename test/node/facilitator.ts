@@ -18,7 +18,7 @@ export async function startFacilitator(network = "eip155:84532") {
 	app.get("/supported", (_req, res) => {
 		res.json({ kinds: [{ x402Version: 2, scheme: "exact", network }], extensions: [], signers: {} });
 	});
-	// A testnet run asks the facilitator to verify before it pays. The stub finds every payment valid.
+	// A testnet run asks the facilitator to verify before it pays.
 	app.post("/verify", (req, res) => {
 		res.json({ isValid: true, payer: req.body.paymentPayload.payload.authorization.from });
 	});
