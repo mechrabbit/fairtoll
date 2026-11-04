@@ -9,6 +9,7 @@ const gptBot = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; 
 const chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 const wallet = "0x00000000000000000000000000000000000000aa";
 const charging = { ai: "charge", price: "0.002", payTo: wallet, network: "base-sepolia" };
+const scopedOnBase = { price: "0.002", payTo: wallet, network: "base" };
 
 let facilitator: Awaited<ReturnType<typeof startFacilitator>>;
 beforeAll(async () => {
@@ -176,9 +177,79 @@ describe("when the facilitator fails", () => {
 	});
 });
 
+describe("charging and blocking on some paths", () => {
+	const scoped = {
+		price: "0.002",
+		payTo: wallet,
+		network: "base-sepolia",
+		rules: [
+			{ path: "/articles/*", ai: "charge", price: "0.01" },
+			{ path: "/articles/9", ai: "charge" },
+			{ path: "/comments", ai: "block" },
+		],
+	};
+
+	test("each rule charges its own price, and a paid request on it gets the page", async () => {
+		const { send, close } = await site(scoped);
+		try {
+			const quote = await send("/articles/1");
+			expect(quote.status).toBe(402);
+			expect(createPayer().decode(quote.headers.get("payment-required")!).accepts[0]).toMatchObject({ amount: "10000", payTo: wallet });
+			const other = await send("/articles/9");
+			expect(createPayer().decode(other.headers.get("payment-required")!).accepts[0]).toMatchObject({ amount: "2000" });
+			const paid = await send("/articles/1", { payment: await createPayer().sign(quote.headers.get("payment-required")!) });
+			expect(paid.status).toBe(200);
+			expect(await paid.text()).toBe("Article 1\n");
+		} finally {
+			close();
+		}
+	});
+
+	test.each([
+		["allow", 404],
+		["block", 403],
+	])("a rule blocks its path, and with ai %s a path no rule matches gets %i", async (ai, status) => {
+		const { send, close } = await site({ ...scoped, ai });
+		try {
+			expect((await send("/comments", { method: "POST", body: "hi" })).status).toBe(403);
+			expect((await send("/other")).status).toBe(status);
+		} finally {
+			close();
+		}
+	});
+
+	test("a reader and an AI crawler's CORS preflight on a charged path aren't charged", async () => {
+		const { send, close } = await site(scoped);
+		try {
+			expect((await send("/articles/1", { userAgent: chrome })).status).toBe(200);
+			expect((await send("/articles/1", { method: "OPTIONS", preflight: true })).status).toBe(204);
+		} finally {
+			close();
+		}
+	});
+
+	test("a rule matches the page a request names, however its path is written", async () => {
+		const { send, close } = await site(scoped);
+		try {
+			for (const path of ["/ARTICLES/1", "/%61rticles/1", "//articles/1"]) {
+				expect((await send(path)).status, path).toBe(402);
+			}
+			// The app routes these under /articles, while resolving them would put them under /other.
+			for (const path of ["/articles/1/..%2f..%2fother", "/articles/1%2f..%2f..%2fother"]) {
+				expect((await send(path)).status, path).toBe(403);
+			}
+			// Blocked even though no rule matches it, because a handler could resolve it to a page that one does.
+			expect((await send("/other/..%2fmore")).status).toBe(403);
+		} finally {
+			close();
+		}
+	});
+});
+
 describe("setting up charging", () => {
 	test('charging on "base" without a facilitator throws at startup', () => {
 		expect(() => fairtoll({ ...charging, network: "base" })).toThrow(/needs a facilitator URL/);
+		expect(() => fairtoll({ ...scopedOnBase, rules: [{ path: "/a/*", ai: "charge" }] })).toThrow(/needs a facilitator URL/);
 	});
 
 	test.each([

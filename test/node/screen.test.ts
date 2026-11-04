@@ -25,32 +25,53 @@ describe("classify", () => {
 	});
 });
 
-const allowing: Config = { ai: "allow" };
-const blocking: Config = { ai: "block" };
-const charging: Config = { ai: "charge", charge: { price: "0.002", payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" } };
+const charge = { price: "0.002", payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" } as const;
+const allowing: Config = { ai: "allow", rules: [] };
+const blocking: Config = { ai: "block", rules: [] };
+const charging: Config = { ai: "charge", charge, rules: [] };
 
 describe("decide", () => {
 	test("allows every class by default", () => {
-		for (const cls of requestClasses) expect(decide(allowing, cls, false)).toEqual({ kind: "allow" });
+		for (const cls of requestClasses) expect(decide(allowing, cls, false, "/articles/1")).toEqual({ kind: "allow" });
 	});
 
 	test("blocking AI blocks every class but human, preflights included", () => {
-		expect(decide(blocking, "human", false)).toEqual({ kind: "allow" });
-		for (const cls of requestClasses.filter((c) => c !== "human")) expect(decide(blocking, cls, true)).toEqual({ kind: "block" });
+		expect(decide(blocking, "human", false, "/articles/1")).toEqual({ kind: "allow" });
+		for (const cls of requestClasses.filter((c) => c !== "human")) expect(decide(blocking, cls, true, "/articles/1")).toEqual({ kind: "block" });
 	});
 
 	test("charging AI charges every class but human on every request but a CORS preflight", () => {
-		expect(decide(charging, "human", false)).toEqual({ kind: "allow" });
+		expect(decide(charging, "human", false, "/articles/1")).toEqual({ kind: "allow" });
 		for (const cls of requestClasses.filter((c) => c !== "human")) {
-			expect(decide(charging, cls, false)).toEqual({ kind: "charge" });
-			expect(decide(charging, cls, true)).toEqual({ kind: "allow" });
+			expect(decide(charging, cls, false, "/articles/1")).toEqual({ kind: "charge", charge });
+			expect(decide(charging, cls, true, "/articles/1")).toEqual({ kind: "allow" });
 		}
 	});
 
-	test("allowsEverything is true only when AI is allowed", () => {
+	test("allowsEverything is true only when AI is allowed on every path", () => {
 		expect(allowsEverything(allowing)).toBe(true);
 		expect(allowsEverything(blocking)).toBe(false);
 		expect(allowsEverything(charging)).toBe(false);
+		expect(allowsEverything({ ai: "allow", rules: [{ path: "/a/*", ai: "allow" }] })).toBe(true);
+		expect(allowsEverything({ ai: "allow", rules: [{ path: "/a/*", ai: "block" }] })).toBe(false);
+		expect(allowsEverything({ ai: "allow", rules: [{ path: "/a/*", ai: "charge", charge }] })).toBe(false);
+	});
+
+	test("a rule decides AI requests on its paths, and the top-level ai decides the rest", () => {
+		const premium = { ...charge, price: "0.01" };
+		const config: Config = {
+			ai: "allow",
+			rules: [
+				{ path: "/premium/*", ai: "charge", charge: premium },
+				{ path: "/private/*", ai: "block" },
+			],
+		};
+		expect(decide(config, "unverifiedBot", false, "/premium/a")).toEqual({ kind: "charge", charge: premium });
+		expect(decide(config, "unverifiedBot", false, "/private/a")).toEqual({ kind: "block" });
+		expect(decide(config, "unverifiedBot", false, "/articles/1")).toEqual({ kind: "allow" });
+		expect(decide(config, "unverifiedBot", true, "/premium/a")).toEqual({ kind: "allow" });
+		expect(decide(config, "human", false, "/private/a")).toEqual({ kind: "allow" });
+		expect(decide({ ...blocking, rules: [{ path: "/free/*", ai: "allow" }] }, "unverifiedBot", false, "/free/a")).toEqual({ kind: "allow" });
 	});
 });
 
@@ -88,13 +109,33 @@ describe("screen", () => {
 
 	test("always lets /robots.txt through when charging, so RSL terms stay readable", () => {
 		expect(screen(request(gptBot), "GET", "/robots.txt", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge" });
+		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge", charge });
+	});
+
+	test("blocks an AI request whose path has a .. segment when there are rules and not every path is allowed", () => {
+		const config: Config = { ai: "allow", rules: [{ path: "/premium/*", ai: "charge", charge }] };
+		expect(decide(config, "unverifiedBot", false, "/premium/a/../../x")).toEqual({ kind: "block" });
+		expect(decide(config, "unverifiedBot", true, "/premium/a/%2e%2e/%2e%2e/x")).toEqual({ kind: "block" });
+		expect(decide(config, "unverifiedBot", false, "/docs/../premium/a")).toEqual({ kind: "block" });
+		expect(decide(config, "unverifiedBot", false, "/x/../y")).toEqual({ kind: "block" });
+		expect(decide(config, "human", false, "/premium/a/../../x")).toEqual({ kind: "allow" });
+		// Without rules, or when every path is allowed, nothing changes, so observing never changes a response.
+		expect(decide(blocking, "unverifiedBot", false, "/x/../y")).toEqual({ kind: "block" });
+		expect(decide(allowing, "unverifiedBot", false, "/x/../y")).toEqual({ kind: "allow" });
+		expect(decide({ ai: "allow", rules: [{ path: "/premium/*", ai: "allow" }] }, "unverifiedBot", false, "/premium/a/../b")).toEqual({ kind: "allow" });
+	});
+
+	test("lets /robots.txt through even when a rule blocks or charges every path", () => {
+		const config: Config = { ai: "allow", rules: [{ path: "/*", ai: "block" }] };
+		expect(screen(request(gptBot), "GET", "/robots.txt", config)).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/robots.txt", { ai: "allow", rules: [{ path: "/*", ai: "charge", charge }] })).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/articles/1", config)).toEqual({ kind: "block" });
 	});
 
 	test("when charging, lets a CORS preflight through and charges any other OPTIONS", () => {
 		const preflight = new Request("https://example.com/", { headers: { "user-agent": gptBot, "access-control-request-method": "POST" } });
 		expect(screen(preflight, "OPTIONS", "/articles/1", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging)).toEqual({ kind: "charge" });
+		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging)).toEqual({ kind: "charge", charge });
 	});
 
 	test("blocks without a log", () => {

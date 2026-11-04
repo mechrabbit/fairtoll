@@ -35,7 +35,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 
 **On Cloudflare, complement.** Cloudflare already does default blocking, Pay Per Use, and the Monetization Gateway. The Worker adapter adds what Cloudflare doesn't do. It observes before anything is blocked, publishes RSL terms, and serves prices to Cloudflare's origin-controlled pricing. Don't rebuild a Cloudflare feature inside the Worker adapter.
 
-**Off Cloudflare, do the whole job.** The Express adapter classifies requests, applies the policy, blocks, charges through x402, and publishes RSL terms itself. Blocking there only covers requests that reach the site, because a cache in front of it, such as a CDN, can answer a bot with a cached page without asking the site. The publisher docs must tell a site behind a cache to block AI bots in the cache too.
+**Off Cloudflare, do the whole job.** The Express adapter classifies requests, applies the policy, blocks, charges through x402, and publishes RSL terms itself. Blocking there only covers requests that reach the site, because a cache in front of it, such as a CDN, can answer a bot with a cached page without asking the site. The publisher docs must tell a site behind a cache to block AI bots in the cache too. When rules block or charge, an AI request with `..` in its path is blocked, because parts of an app resolve `..` differently. The publisher docs must say to mount the middleware at the root and scope it with rules.
 
 **Build on the standards.** Charging uses the official `@x402` packages. Licensing terms follow RSL. Never reimplement payments.
 

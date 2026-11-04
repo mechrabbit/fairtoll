@@ -15,6 +15,7 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/monitor` | Fairtoll classifies each request and lets it through |
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
 | `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, charges every method but a CORS preflight, and lets everyone else through |
+| `/paths` | Fairtoll has rules: it charges AI bots and agents $0.01 under `/paths/premium/`, blocks them under `/paths/private/`, and lets every other path through |
 
 `/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
 
@@ -24,6 +25,8 @@ To pay, take the `PAYMENT-REQUIRED` header from a 402 and sign a payment for it 
 node demo/pay.js "<PAYMENT-REQUIRED header value>"
 curl -i -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: <what pay.js printed>" http://localhost:3000/charged/articles/42
 ```
+
+`/paths` runs the settings' config with two rules added, `{ "path": "/paths/premium/*", "ai": "charge", "price": "0.01" }` and `{ "path": "/paths/private/*", "ai": "block" }`, and the same wallet and network as `/charged`. A rule's path is the whole path, not the part under where Fairtoll is mounted. Paths no rule matches follow the config's own `ai`, which is `"allow"` unless the settings set it. A rule matches the page a request names, so `/paths/PREMIUM/1` and `/paths/%70remium/1` are charged too, and an AI request whose path has a `..` segment, such as `/paths/premium/1/..%2f..%2farticles`, is blocked, because Express routes it under `/paths/premium` while it resolves to `/paths/articles`. The `Config` type in `src/core/config.ts` documents how rules match.
 
 The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
 
@@ -44,7 +47,7 @@ To compare settings, send the same requests to a run with each, as in `npm run d
 { "description": "Fairtoll with logging on", "config": {}, "log": true }
 ```
 
-`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it, and `/charged` sets `ai` to `"charge"`, with the price, wallet and network above unless `config` sets them. `log: true` turns on the `log` option. An invalid config stops the server at startup.
+`config` is passed to `fairtoll()` unchanged, so a new config field needs no change to the demo, and defaults to `{}`. `/blocked` sets `ai` to `"block"` on top of it, and `/charged` sets `ai` to `"charge"`, with the price, wallet and network above unless `config` sets them. `/paths` sets `rules`, replacing any the settings have. `log: true` turns on the `log` option. An invalid config stops the server at startup.
 
 `PORT` sets the port, and the server stops with an error if the port is in use.
 
@@ -73,7 +76,7 @@ A scenario is a shell script in `demo/scenarios/` that builds the package, start
 sh demo/scenarios/visitors.sh demo/settings/logging.json
 ```
 
-`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. To write a new scenario, copy it and change the `send` lines.
+`visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. `paths.sh` sends the same AI crawler to paths under `/paths` that a rule charges, a rule blocks, and no rule matches, and has it pay on the charged one. To write a new scenario, copy it and change the `send` lines.
 
 ## Checking a change
 
