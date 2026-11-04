@@ -1,8 +1,25 @@
 {
 	"name": "fairtoll",
-	"version": "0.0.0",
-	"private": true,
-	"license": "UNLICENSED",
+	"version": "0.1.0",
+	"description": "See, block and charge for AI bot and agent traffic on your own site, with x402 payments.",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mechrabbit/fairtoll.git"
+	},
+	"homepage": "https://github.com/mechrabbit/fairtoll#readme",
+	"bugs": {
+		"url": "https://github.com/mechrabbit/fairtoll/issues"
+	},
+	"keywords": [
+		"ai",
+		"bots",
+		"crawlers",
+		"x402",
+		"paywall",
+		"express",
+		"middleware"
+	],
 	"type": "module",
 	"exports": {
 		".": {
@@ -30,6 +47,7 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
+		"prepublishOnly": "npm run build",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p src/core",
 		"lint": "eslint .",
 		"test": "vitest run",
