@@ -87,7 +87,7 @@ npm run demo:next
 curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/blocked/articles/42
 ```
 
-It runs a production build with `next start`, so the proxy behaves as it would when deployed. Each request prints a line, then the event Fairtoll logged, then either the status Fairtoll answered with or that the request was passed on to the page.
+`PORT` sets the port, as with `demo:serve`. Set it rather than passing `-p` to Next, because `/charged` finds its stand-in facilitator on that port. It runs a production build with `next start`, so the proxy behaves as it would when deployed. Each request prints a line, then the event Fairtoll logged, then either the status Fairtoll answered with or that the request was passed on to the page.
 
 ## Checking a change
 

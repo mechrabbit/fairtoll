@@ -4,7 +4,7 @@ import { createGate, type Gate, type Options } from "../core/index.js";
 export type { Options };
 
 /**
- * A Next.js proxy (`proxy.ts`, or `middleware.ts` before Next 16) that screens every request, answers a request
+ * A Next.js 16 proxy (`proxy.ts`) that screens every request, answers a request
  * the config blocks with a 403, charges a request the config charges, and passes the rest on unchanged:
  *
  *     export const proxy = fairtoll(settings, { facilitator: { url: process.env.FACILITATOR_URL } });
