@@ -21,8 +21,8 @@ export interface Options {
  * serves the page with `headers` added, which are empty unless the request paid.
  */
 export type Outcome =
-	| { readonly kind: "respond"; readonly status: number; readonly headers: Record<string, string>; readonly body: string }
-	| { readonly kind: "pass"; readonly headers: Record<string, string> };
+	| { readonly kind: "respond"; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
+	| { readonly kind: "pass"; readonly headers: Readonly<Record<string, string>> };
 
 /**
  * `outcome` never rejects. `logged` settles once the request's log has, and never rejects, so a runtime
@@ -41,7 +41,8 @@ export interface Gate {
 }
 
 const blockedMessage = "This site does not allow AI bots or agents.\n";
-const pass: Outcome = { kind: "pass", headers: {} };
+// Shared by every request passed on unpaid, so it is frozen: an adapter that wrote to it would change them all.
+const pass: Outcome = Object.freeze({ kind: "pass", headers: Object.freeze({}) });
 
 /**
  * What every adapter shares: screen a request, then answer a block with a 403, a charge with x402's 402 or the
@@ -60,7 +61,8 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 	}
 	const { config } = result;
 	const { log, facilitator } = options;
-	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
+	const facilitatorUrl: unknown = typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined;
+	if (facilitator !== undefined && !isHttpUrl(facilitatorUrl)) {
 		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
 	}
 	// One charger for each distinct price, wallet and network, all made now. Every charge a request can get comes
