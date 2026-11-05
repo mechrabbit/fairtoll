@@ -41,6 +41,11 @@ test("a blocked AI crawler gets a 403 that a shared cache won't replay", async (
 	expect(await response.text()).toBe("This site does not allow AI bots or agents.\n");
 });
 
+test("without the event, a blocked AI crawler is still blocked", async () => {
+	const response = await fairtoll({ ai: "block" }, { log: () => {} })(new NextRequest("http://example.com/articles/1", { headers: { "user-agent": gptBot } }));
+	expect(response.status).toBe(403);
+});
+
 test("rules match the path Next routes by", async () => {
 	const proxy = fairtoll({ ai: "allow", rules: [{ path: "/private/*", ai: "block" }] });
 	expect((await send(proxy, "/private/1")).response.status).toBe(403);
@@ -90,6 +95,6 @@ describe("charging", () => {
 test("an invalid config is reported when the proxy loads, and every request is then passed on", async () => {
 	const error = vi.spyOn(console, "error").mockImplementation(() => {});
 	const proxy = fairtoll({ ai: "nope" });
-	expect(error).toHaveBeenCalledWith(expect.stringMatching(/passed through unscreened/), expect.objectContaining({ message: expect.stringMatching(/ai must be/) }));
+	expect(error).toHaveBeenCalledWith(expect.stringMatching(/blocking and charging are off/), expect.objectContaining({ message: expect.stringMatching(/ai must be/) }));
 	expect(passedOn((await send(proxy, "/articles/1")).response)).toBe(true);
 });
