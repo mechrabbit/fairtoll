@@ -26,8 +26,8 @@ export function fairtoll(input: unknown, options: Options = {}): (request: NextR
 		console.error("fairtoll: every request will be passed through unscreened, because:", error);
 		return async () => NextResponse.next();
 	}
+	if (gate.idle) return async () => NextResponse.next();
 	return async (request, event) => {
-		if (gate.idle) return NextResponse.next();
 		try {
 			const { outcome, logged } = gate.check(request, request.method, request.nextUrl.pathname);
 			// Vercel can stop the function once the response is sent, so the log is kept alive until it's written.

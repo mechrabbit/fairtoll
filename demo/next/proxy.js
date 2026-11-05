@@ -16,8 +16,9 @@ const endpoints = {
 };
 
 export async function proxy(request, event) {
-	// A Demo-Visitor header, such as `Demo-Visitor: GPTBot`, becomes that visitor's user-agent before Fairtoll
-	// sees the request, and the header itself is removed. Any capitalisation of the name works.
+	// A Demo-Visitor header, such as `Demo-Visitor: GPTBot`, becomes that visitor's user-agent in the request
+	// Fairtoll sees, without the header itself. The page still gets the original headers. Any capitalisation of
+	// the name works.
 	const named = request.headers.get("demo-visitor");
 	if (named !== null) {
 		const visitor = Object.keys(visitors).find((name) => name.toLowerCase() === named.toLowerCase());
