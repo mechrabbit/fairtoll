@@ -1,6 +1,6 @@
 import { createCharger, type Charger, type FacilitatorConfig } from "./charge.js";
 import { parseConfig, type Charge } from "./config.js";
-import { allowsEverything, screen, type EventSink } from "./screen.js";
+import { allowsEverything, screen, type Action, type EventSink } from "./screen.js";
 
 export interface Options {
 	/**
@@ -74,9 +74,16 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 		if (!chargers.has(key)) chargers.set(key, createCharger(policy.charge, facilitator));
 	}
 
-	async function charge(request: Request, method: string, path: string, policy: Charge): Promise<Outcome> {
+	// Never rejects: when charging fails, such as when the facilitator can't be reached, the request is passed on unpaid.
+	async function outcomeFor(action: Action, request: Request, method: string, path: string): Promise<Outcome> {
+		if (action.kind === "allow") return pass;
+		if (action.kind === "block") {
+			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
+			const headers = { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" };
+			return { kind: "respond", status: 403, headers, body: blockedMessage };
+		}
 		try {
-			const charger = chargers.get(chargerKey(policy));
+			const charger = chargers.get(chargerKey(action.charge));
 			// Can't happen, because every policy's charger was made above.
 			if (charger === undefined) throw new Error("no charger was made at startup for this charge");
 			const outcome = await charger(request, method, path);
@@ -91,13 +98,7 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 		idle: log === undefined && allowsEverything(config),
 		check(request, method, path) {
 			const { action, logged } = screen(request, method, path, config, log);
-			if (action.kind === "block") {
-				// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
-				const headers = { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" };
-				return { outcome: Promise.resolve({ kind: "respond", status: 403, headers, body: blockedMessage }), logged };
-			}
-			if (action.kind === "charge") return { outcome: charge(request, method, path, action.charge), logged };
-			return { outcome: Promise.resolve(pass), logged };
+			return { outcome: outcomeFor(action, request, method, path), logged };
 		},
 	};
 }

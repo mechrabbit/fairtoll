@@ -4,8 +4,8 @@ import { createGate, type Gate, type Options } from "../core/index.js";
 export type { Options };
 
 /**
- * A Next.js 16 proxy (`proxy.ts`) that screens every request, answers a request
- * the config blocks with a 403, charges a request the config charges, and passes the rest on unchanged:
+ * A Next.js 16 proxy (`proxy.ts`) that screens every request, answers a request the config blocks with a 403,
+ * charges a request the config charges, and passes the rest on unchanged:
  *
  *     export const proxy = fairtoll(settings);
  *
@@ -17,8 +17,8 @@ export type { Options };
  * so Fairtoll can't run there. When charging, a payment settles before the page runs, so a bot pays for every
  * request the charge covers, as with Express. Only a CORS preflight is free.
  * An invalid config or option is reported when the proxy loads, and every request is then passed through
- * unscreened, so nothing is blocked or charged. It doesn't throw as the Express adapter does, because `next build` doesn't load the proxy, so a
- * throw would only show in production, as a 500 on every request.
+ * unscreened, so nothing is blocked or charged. It doesn't throw as the Express adapter does, because
+ * `next build` doesn't load the proxy, so a throw would only show in production, as a 500 on every request.
  */
 export function fairtoll(input: unknown, options: Options = {}): (request: NextRequest, event?: NextFetchEvent) => Promise<Response> {
 	let gate: Gate;
