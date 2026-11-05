@@ -1,7 +1,7 @@
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["dist/", "node_modules/"] },
+	{ ignores: ["dist/", "node_modules/", "**/.next/"] },
 	...tseslint.configs.recommended,
 	{
 		// Node built-ins and globals already fail core's own typecheck (src/core/tsconfig.json), but Express has types

@@ -78,6 +78,17 @@ sh demo/scenarios/visitors.sh demo/settings/logging.json
 
 `visitors.sh` sends a reader, an AI crawler reading, and an AI crawler posting to each endpoint. Run it once per settings file to compare settings. `charging.sh` has a crawler on `/charged` get a price, pay it, read the page, and try the same payment again, and ClaudeBot pay to post a comment. `paths.sh` sends the same AI crawler to paths under `/paths` that a rule charges, a rule blocks, and no rule matches, and has it pay on the charged one. To write a new scenario, copy it and change the `send` lines.
 
+## Next.js
+
+`demo/next/` is the same site as a Next.js app, with Fairtoll in its `proxy.js`, so the same curl requests show the Next.js adapter. It has `/open`, `/monitor`, `/blocked` and `/charged`, configured as above, with logging always on, and the same `Demo-Visitor` header and stand-in facilitator. It has no settings files, `/paths` or `/robots.txt`.
+
+```sh
+npm run demo:next
+curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/blocked/articles/42
+```
+
+It runs a production build with `next start`, so the proxy behaves as it would when deployed. Each request prints a line, then the event Fairtoll logged, then either the status Fairtoll answered with or that the request was passed on to the page.
+
 ## Checking a change
 
 Write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself. A change to `demo/serve.js`, a settings file, or a scenario changes what the transcript can show, so review it as closely as the change itself.

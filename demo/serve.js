@@ -10,18 +10,8 @@ import express from "express";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fairtoll } from "../dist/express/index.js";
-
-/** Known visitors' real user-agent strings, so a request can name a visitor instead of knowing its string. */
-const visitors = {
-	Chrome: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-	"Safari on iPhone": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-	Googlebot: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-	GPTBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
-	"ChatGPT-User": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot",
-	ClaudeBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
-	PerplexityBot: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
-	CCBot: "CCBot/2.0 (https://commoncrawl.org/faq/)",
-};
+import { settle, supported } from "./facilitator.js";
+import { visitors } from "./visitors.js";
 
 // Settings are { description, config?, log? }. `config` is passed to fairtoll() unchanged, and defaults to
 // {}. `log: true` turns on its `log` option.
@@ -76,24 +66,9 @@ try {
 	process.exit(1);
 }
 
-// A stand-in for an x402 facilitator such as x402.org's. It settles a payment that names the price and wallet
-// the 402 asked for, and rejects a payment it has already settled. It checks no signature and moves no money.
-const settledNonces = new Set();
-app.get("/facilitator/supported", (_req, res) => {
-	res.json({ kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:84532" }], extensions: [], signers: {} });
-});
-app.post("/facilitator/settle", express.json(), (req, res) => {
-	const { paymentPayload, paymentRequirements } = req.body;
-	const { from, to, value, nonce } = paymentPayload.payload.authorization;
-	const network = paymentRequirements.network;
-	let errorReason;
-	if (to.toLowerCase() !== paymentRequirements.payTo.toLowerCase() || value !== paymentRequirements.amount) errorReason = "wrong_price_or_wallet";
-	else if (settledNonces.has(nonce)) errorReason = "payment_already_used";
-	console.log(`   facilitator ${errorReason ? `rejects: ${errorReason}` : `settles ${value} from ${from}`}`);
-	if (errorReason) return res.json({ success: false, errorReason, transaction: "", network, payer: from });
-	settledNonces.add(nonce);
-	res.json({ success: true, transaction: `0xdemo${settledNonces.size}`, network, payer: from });
-});
+// The stand-in facilitator in demo/facilitator.js, on this same server.
+app.get("/facilitator/supported", (_req, res) => res.json(supported));
+app.post("/facilitator/settle", express.json(), (req, res) => res.json(settle(req.body)));
 
 const endpoints = [
 	"   /open     no Fairtoll",
