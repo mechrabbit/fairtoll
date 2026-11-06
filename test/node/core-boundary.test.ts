@@ -43,14 +43,14 @@ describe("core stays runtime-neutral", { timeout: 30_000 }, () => {
 		expect(typeErrors('export const used = new Request("https://example.com/").headers.get("user-agent"); console.error(used);')).toEqual([]);
 	});
 
-	test("lint rejects express and references to Node's types or the DOM in src/core, and allows them in an adapter", async () => {
+	test("lint rejects express, next and references to Node's types or the DOM in src/core, and allows them in an adapter", async () => {
 		const eslint = new ESLint();
 		const rules = async (filePath: string) => {
-			const code = '/// <reference types="node" />\n/// <reference lib="dom" />\nimport express from "express";\nexport const used = express;\n';
+			const code = '/// <reference types="node" />\n/// <reference lib="dom" />\nimport express from "express";\nimport { NextResponse } from "next/server.js";\nexport const used = [express, NextResponse];\n';
 			const [result] = await eslint.lintText(code, { filePath });
 			return (result?.messages ?? []).map((m) => m.ruleId);
 		};
-		expect(await rules("src/core/probe.ts")).toEqual(["@typescript-eslint/triple-slash-reference", "@typescript-eslint/triple-slash-reference", "no-restricted-imports"]);
+		expect(await rules("src/core/probe.ts")).toEqual(["@typescript-eslint/triple-slash-reference", "@typescript-eslint/triple-slash-reference", "no-restricted-imports", "no-restricted-imports"]);
 		expect(await rules("src/express/probe.ts")).toEqual([]);
 	});
 });
