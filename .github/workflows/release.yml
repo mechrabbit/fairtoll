@@ -32,7 +32,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node bench/latency.js --check
-      # prepack builds dist/ from a clean slate before packing.
-      - run: npm publish --provenance --access public
+      # dist/ was built above. --ignore-scripts skips prepack, so the npm token reaches npm alone, not the build.
+      - run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
