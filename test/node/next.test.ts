@@ -1,7 +1,7 @@
 import { NextRequest, type NextFetchEvent } from "next/server.js";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import type { DecisionEvent } from "../../src/core/index.js";
-import { fairtoll } from "../../src/next/index.js";
+import { answered, fairtoll } from "../../src/next/index.js";
 import { createPayer, startFacilitator } from "./facilitator.js";
 
 const gptBot = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot";
@@ -31,11 +31,13 @@ const passedOn = (response: Response) => response.headers.get("x-middleware-next
 test("a reader is passed on to the page", async () => {
 	const { response } = await send(fairtoll({ ai: "block" }), "/articles/1", { "user-agent": chrome });
 	expect(passedOn(response)).toBe(true);
+	expect(answered(response)).toBe(false);
 });
 
 test("a blocked AI crawler gets a 403 that a shared cache won't replay", async () => {
 	const { response } = await send(fairtoll({ ai: "block" }), "/articles/1");
 	expect(passedOn(response)).toBe(false);
+	expect(answered(response)).toBe(true);
 	expect(response.status).toBe(403);
 	expect(response.headers.get("cache-control")).toBe("no-store");
 	expect(await response.text()).toBe("This site does not allow AI bots or agents.\n");
@@ -76,10 +78,12 @@ describe("charging", () => {
 		const proxy = fairtoll(charging, { facilitator: { url: facilitator.url } });
 		const quote = (await send(proxy, "/articles/1")).response;
 		expect(quote.status).toBe(402);
+		expect(answered(quote)).toBe(true);
 		expect(quote.headers.get("cache-control")).toBe("no-store");
 		const payment = await createPayer().sign(quote.headers.get("payment-required")!);
 		const paid = (await send(proxy, "/articles/1", { "payment-signature": payment })).response;
 		expect(passedOn(paid)).toBe(true);
+		expect(answered(paid)).toBe(false);
 		expect(JSON.parse(atob(paid.headers.get("payment-response")!))).toMatchObject({ success: true });
 		expect(paid.headers.get("cache-control")).toBe("private");
 	});
@@ -88,6 +92,7 @@ describe("charging", () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const { response } = await send(fairtoll(charging, { facilitator: { url: "http://localhost:1" } }), "/articles/1");
 		expect(passedOn(response)).toBe(true);
+		expect(answered(response)).toBe(false);
 		expect(error).toHaveBeenCalledWith(expect.stringMatching(/passed on without payment/), expect.anything());
 	});
 });
@@ -96,5 +101,11 @@ test("an invalid config is reported when the proxy loads, and every request is t
 	const error = vi.spyOn(console, "error").mockImplementation(() => {});
 	const proxy = fairtoll({ ai: "nope" });
 	expect(error).toHaveBeenCalledWith(expect.stringMatching(/blocking and charging are off/), expect.objectContaining({ message: expect.stringMatching(/ai must be/) }));
-	expect(passedOn((await send(proxy, "/articles/1")).response)).toBe(true);
+	const { response } = await send(proxy, "/articles/1");
+	expect(passedOn(response)).toBe(true);
+	expect(answered(response)).toBe(false);
+});
+
+test("a response Fairtoll didn't make was not answered by it, whatever its status", () => {
+	expect(answered(new Response("Forbidden", { status: 403 }))).toBe(false);
 });

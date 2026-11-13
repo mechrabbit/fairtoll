@@ -2,7 +2,7 @@
 // Fairtoll, the way a site with its own proxy calls Fairtoll's first. Logging is on, so each AI request prints
 // the event Fairtoll logged. Each request prints a line, then the event, then what Fairtoll answered.
 import { NextRequest, NextResponse } from "next/server.js";
-import { fairtoll } from "../../dist/next/index.js";
+import { answered, fairtoll } from "../../dist/next/index.js";
 import { visitors } from "../visitors.js";
 
 const options = { log: (event) => console.log(`   logged ${JSON.stringify(event)}`) };
@@ -34,8 +34,7 @@ export async function proxy(request, event) {
 	console.log(`${request.method} ${pathname}   user-agent: ${request.headers.get("user-agent") ?? "none"}`);
 	const endpoint = Object.keys(endpoints).find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 	const response = endpoint ? await endpoints[endpoint](request, event) : NextResponse.next();
-	// NextResponse.next() marks a response that carries on to the page.
-	console.log(response.headers.has("x-middleware-next") ? "   passed on to the page" : `   response ${response.status}`);
+	console.log(answered(response) ? `   response ${response.status}` : "   passed on to the page");
 	return response;
 }
 
