@@ -12,7 +12,7 @@ Undo any step by changing the config back, and your site behaves exactly as befo
 
 ## Before you start
 
-This is version 0. Know these limits before you rely on it:
+This is an early 0.x release. Know these limits before you rely on it:
 
 - **Bots are recognised by their user-agent only.** Fairtoll matches the names that AI crawlers and agents send, such as `GPTBot`, `ClaudeBot` and `PerplexityBot`. A bot that pretends to be a browser is treated as a reader and served the page for free. So blocking and charging only catch bots that identify themselves honestly. Checking a bot's identity cryptographically is planned.
 - **Express and Next.js only.** Fairtoll needs Express 5 or Next.js 16, and Node 20 or later. A Cloudflare Worker adapter is planned.
@@ -61,10 +61,10 @@ import { fairtoll } from "fairtoll/next";
 export const proxy = fairtoll({}, { log: (event) => console.log(JSON.stringify(event)) });
 ```
 
-It takes the same config and options as on Express, so every example in this README works with `fairtoll` from `fairtoll/next` in place of `app.use(...)`. A few things work differently:
+It takes the same config and options as on Express, so every config in this README works on Next.js: write `export const proxy = fairtoll(...)`, importing from `fairtoll/next`, in place of `app.use(fairtoll(...))`. A few things work differently:
 
 - Don't give the proxy a `matcher`, so that it sees every path, and choose its paths with [rules](#rules). This is the Next.js version of [mounting it at the root](#mount-it-at-the-root).
-- Next.js allows one proxy. If your app already has one, keep Fairtoll's as a function, such as `const screen = fairtoll(config)`, and call `screen(request, event)` from yours before anything else. Pass on the `event`, or the log may not be written. [`demo/next/proxy.js`](demo/next/proxy.js) does this, and shows how to tell a response Fairtoll answered from one it passed on.
+- Next.js allows one proxy. If your app already has one, keep Fairtoll's as a function, such as `const screen = fairtoll(config)`, and call `screen(request, event)` from yours before anything else. If it answered the request with a 403 or 402, return its response unchanged. If it passed the request on, keep its headers, which carry the payment receipt. Pass on the `event`, or the log may not be written. [`demo/next/proxy.js`](demo/next/proxy.js) does this, and shows how to tell a response Fairtoll answered from one it passed on (its `matcher` is only for the demo).
 - Rules match the path after your `basePath`, which is what Next.js routes by.
 - Rewrites in `next.config` run after the proxy, so a rewrite from a free path to a charged page gives the page away. Never point a rewrite from a free path at charged content.
 - A mistake in the config doesn't stop your app, because `next build` doesn't load the proxy and the mistake would only show in production. Instead Fairtoll prints the error when the proxy loads, and passes every request on unscreened, so nothing is blocked or charged. Check your server's log after you change the config.
@@ -79,7 +79,7 @@ On Express, always add Fairtoll with `app.use(fairtoll(...))`, before anything e
 | Field | What it does |
 | --- | --- |
 | `ai` | What happens to AI requests on paths that no rule matches: `"allow"` (the default), `"block"` or `"charge"`. |
-| `price` | The price in US dollars, as a string with at most 6 decimals, such as `"0.002"`. |
+| `price` | The price in US dollars, above zero, as a string with at most 6 decimals, such as `"0.002"`. |
 | `payTo` | Your wallet address, which every payment goes to. |
 | `network` | `"base"` for real USDC, or `"base-sepolia"` for test USDC. |
 | `rules` | A list of rules, each deciding `ai` for some paths. |
@@ -209,7 +209,7 @@ Fairtoll fails open. If it can't read a request, classify it, or reach the facil
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) sets what the package must do and how to decide what belongs in it.
+To work on Fairtoll, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
