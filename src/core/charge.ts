@@ -19,8 +19,8 @@ export type { FacilitatorConfig };
  * adapter adds the headers, which carry the transaction, and serves the page.
  */
 export type ChargeOutcome =
-	| { readonly kind: "respond"; readonly status: number; readonly headers: Record<string, string>; readonly body: string }
-	| { readonly kind: "paid"; readonly headers: Record<string, string> };
+	| { readonly kind: "respond"; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
+	| { readonly kind: "paid"; readonly headers: Readonly<Record<string, string>> };
 
 /**
  * Charges a request through x402. It rejects only when the facilitator can't be reached, so the adapter can

@@ -1,24 +1,8 @@
 import type { Request as ExpressRequest, RequestHandler } from "express";
 import parseurl from "parseurl";
-import { allowsEverything, createCharger, parseConfig, screen, type EventSink, type FacilitatorConfig } from "../core/index.js";
-import type { Charger } from "../core/charge.js";
-import type { Charge } from "../core/config.js";
+import { createGate, type Options } from "../core/index.js";
 
-export interface Options {
-	/**
-	 * Receives each event, such as to send it to the app's own logger. Without it nothing is logged,
-	 * because a path can carry a secret such as a reset token, so the publisher chooses where events go.
-	 */
-	readonly log?: EventSink;
-	/**
-	 * The x402 facilitator that settles payments, passed to x402's `HTTPFacilitatorClient`. It defaults to
-	 * x402.org's, which only settles on testnets, so charging on "base" needs one with a `url`, such as
-	 * Coinbase's from `createFacilitatorConfig` in `@coinbase/x402`.
-	 */
-	readonly facilitator?: FacilitatorConfig;
-}
-
-const blockedMessage = "This site does not allow AI bots or agents.\n";
+export type { Options };
 
 /**
  * Express middleware that screens every request, answers a request the config blocks with a 403, charges a
@@ -32,29 +16,8 @@ const blockedMessage = "This site does not allow AI bots or agents.\n";
  * An invalid config or option throws here, so a mistake shows at startup and not on a request.
  */
 export function fairtoll(input: unknown, options: Options = {}): RequestHandler {
-	const result = parseConfig(input);
-	if (!result.ok) {
-		throw new Error(`Invalid fairtoll config:\n${result.errors.map((e) => `  ${e.field} ${e.message}`).join("\n")}`);
-	}
-	if (options.log !== undefined && typeof options.log !== "function") {
-		throw new Error("Invalid fairtoll options: log must be a function");
-	}
-	const { config } = result;
-	const { log, facilitator } = options;
-	if (facilitator !== undefined && !isHttpUrl(typeof facilitator === "object" && facilitator !== null ? facilitator.url : undefined)) {
-		throw new Error("Invalid fairtoll options: facilitator must be an object with an http or https url");
-	}
-	// One charger for each distinct price, wallet and network, all made now. Every charge a request can get comes
-	// from one of these policies, so a charge that can't work, such as on "base" without a facilitator, throws here
-	// at startup and not on a request.
-	const chargerKey = (charge: Charge) => `${charge.price} ${charge.payTo} ${charge.network}`;
-	const chargers = new Map<string, Charger>();
-	for (const policy of [config, ...config.rules]) {
-		if (policy.ai !== "charge") continue;
-		const key = chargerKey(policy.charge);
-		if (!chargers.has(key)) chargers.set(key, createCharger(policy.charge, facilitator));
-	}
-	if (log === undefined && allowsEverything(config)) return (_req, _res, next) => next();
+	const gate = createGate(input, options);
+	if (gate.idle) return (_req, _res, next) => next();
 
 	return (req, res, next) => {
 		let request: Request;
@@ -69,39 +32,17 @@ export function fairtoll(input: unknown, options: Options = {}): RequestHandler 
 			next();
 			return;
 		}
-		const action = screen(request, req.method, path, config, log);
-		if (action.kind === "block") {
-			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
-			res.status(403).set("Cache-Control", "no-store").type("text/plain").send(blockedMessage);
-			return;
-		}
-		if (action.kind === "charge") {
-			const charge = chargers.get(chargerKey(action.charge));
-			// Can't happen, because every policy's charger was made above.
-			if (charge === undefined) throw new Error("fairtoll: no charger was made at startup for this charge");
-			// Express catches anything the outcome's handler throws, because the promise is returned to it.
-			return charge(request, req.method, path).then(
-				(outcome) => {
-					if (outcome.kind === "respond") {
-						res.status(outcome.status).set(outcome.headers).send(outcome.body);
-						return;
-					}
-					res.set(outcome.headers);
-					next();
-				},
-				(error: unknown) => {
-					console.error("fairtoll: charging a request failed, so it was passed on without payment:", error);
-					next();
-				},
-			);
-		}
-		next();
+		// Express catches anything this throws, because the promise is returned to it. The log needs no waiting
+		// for, because a Node server keeps running after the response is sent.
+		return gate.check(request, req.method, path).outcome.then((outcome) => {
+			if (outcome.kind === "respond") {
+				res.status(outcome.status).set(outcome.headers).send(outcome.body);
+				return;
+			}
+			res.set(outcome.headers);
+			next();
+		});
 	};
-}
-
-/** `URL.canParse` alone accepts "localhost:8080", whose protocol is "localhost:", so the facilitator could never be reached. */
-function isHttpUrl(url: unknown): boolean {
-	return typeof url === "string" && URL.canParse(url) && ["http:", "https:"].includes(new URL(url).protocol);
 }
 
 /**
