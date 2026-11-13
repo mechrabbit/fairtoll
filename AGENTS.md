@@ -1,6 +1,6 @@
 # AGENTS.md
 
-The [README](README.md) sets what the package must do and how to decide what belongs in it. This file covers how to work on it.
+[CONTRIBUTING.md](CONTRIBUTING.md) sets what the package must do and how to decide what belongs in it. This file covers how to work on it.
 
 ## Code is a liability
 
