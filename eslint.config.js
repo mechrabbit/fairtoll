@@ -1,11 +1,11 @@
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["dist/", "node_modules/"] },
+	{ ignores: ["dist/", "node_modules/", "**/.next/"] },
 	...tseslint.configs.recommended,
 	{
-		// Node built-ins and globals already fail core's own typecheck (src/core/tsconfig.json), but Express has types
-		// installed, so an import of it would typecheck, and a triple-slash reference could bring Node's types or the DOM back.
+		// Node built-ins and globals already fail core's own typecheck (src/core/tsconfig.json), but Express and Next have
+		// types installed, so an import of either would typecheck, and a triple-slash reference could bring Node's types or the DOM back.
 		// Worker-only globals such as self and caches still typecheck, so core must not rely on them either.
 		files: ["src/core/**/*.ts"],
 		rules: {
@@ -15,8 +15,8 @@ export default tseslint.config(
 				{
 					patterns: [
 						{
-							regex: "^express($|/)",
-							message: "Core must not depend on Express. Put Express code in src/express.",
+							regex: "^(express|next)($|/)",
+							message: "Core must not depend on Express or Next.js. Put adapter code in src/express or src/next.",
 						},
 					],
 				},

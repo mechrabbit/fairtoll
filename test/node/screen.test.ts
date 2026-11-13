@@ -87,7 +87,7 @@ describe("screen", () => {
 
 	test("logs one versioned event per request, with the path it is given", () => {
 		const { events, log } = collect();
-		expect(screen(request(gptBot), "GET", "/articles/1", allowing, log)).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/articles/1", allowing, log).action).toEqual({ kind: "allow" });
 		expect(events).toEqual([
 			{ fairtoll: 1, time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/), path: "/articles/1", class: "unverifiedBot", reason: "user-agent claims GPTBot", action: "allow" },
 		]);
@@ -95,21 +95,21 @@ describe("screen", () => {
 
 	test("returns and logs a block when the config blocks the request", () => {
 		const { events, log } = collect();
-		expect(screen(request(gptBot), "GET", "/articles/1", blocking, log)).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "GET", "/articles/1", blocking, log).action).toEqual({ kind: "block" });
 		expect(events).toEqual([expect.objectContaining({ class: "unverifiedBot", action: "block" })]);
 	});
 
 	test("always allows /robots.txt, and logs it as allowed", () => {
 		const { events, log } = collect();
-		expect(screen(request(gptBot), "GET", "/robots.txt", blocking, log)).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/robots.txt", blocking, log).action).toEqual({ kind: "allow" });
 		expect(events).toEqual([expect.objectContaining({ path: "/robots.txt", action: "allow" })]);
-		expect(screen(request(gptBot), "GET", "/robots.txt/x", blocking)).toEqual({ kind: "block" });
-		expect(screen(request(gptBot), "GET", "/blog/robots.txt", blocking)).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "GET", "/robots.txt/x", blocking).action).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "GET", "/blog/robots.txt", blocking).action).toEqual({ kind: "block" });
 	});
 
 	test("always lets /robots.txt through when charging, so RSL terms stay readable", () => {
-		expect(screen(request(gptBot), "GET", "/robots.txt", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "GET", "/articles/1", charging)).toEqual({ kind: "charge", charge });
+		expect(screen(request(gptBot), "GET", "/robots.txt", charging).action).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/articles/1", charging).action).toEqual({ kind: "charge", charge });
 	});
 
 	test("blocks an AI request whose path has a .. segment when there are rules and not every path is allowed", () => {
@@ -127,24 +127,35 @@ describe("screen", () => {
 
 	test("lets /robots.txt through even when a rule blocks or charges every path", () => {
 		const config: Config = { ai: "allow", rules: [{ path: "/*", ai: "block" }] };
-		expect(screen(request(gptBot), "GET", "/robots.txt", config)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "GET", "/robots.txt", { ai: "allow", rules: [{ path: "/*", ai: "charge", charge }] })).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "GET", "/articles/1", config)).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "GET", "/robots.txt", config).action).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/robots.txt", { ai: "allow", rules: [{ path: "/*", ai: "charge", charge }] }).action).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "GET", "/articles/1", config).action).toEqual({ kind: "block" });
 	});
 
 	test("when charging, lets a CORS preflight through and charges any other OPTIONS", () => {
 		const preflight = new Request("https://example.com/", { headers: { "user-agent": gptBot, "access-control-request-method": "POST" } });
-		expect(screen(preflight, "OPTIONS", "/articles/1", charging)).toEqual({ kind: "allow" });
-		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging)).toEqual({ kind: "charge", charge });
+		expect(screen(preflight, "OPTIONS", "/articles/1", charging).action).toEqual({ kind: "allow" });
+		expect(screen(request(gptBot), "OPTIONS", "/articles/1", charging).action).toEqual({ kind: "charge", charge });
 	});
 
 	test("blocks without a log", () => {
-		expect(screen(request(gptBot), "GET", "/articles/1", blocking)).toEqual({ kind: "block" });
+		expect(screen(request(gptBot), "GET", "/articles/1", blocking).action).toEqual({ kind: "block" });
+	});
+
+	test("logged settles only once an async log has", async () => {
+		let finish = () => {};
+		const log = () => new Promise<void>((resolve) => (finish = resolve));
+		let settled = false;
+		void screen(request(gptBot), "GET", "/articles/1", blocking, log).logged.then(() => (settled = true));
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(settled).toBe(false);
+		finish();
+		await expect.poll(() => settled).toBe(true);
 	});
 
 	test("a human request isn't logged", () => {
 		const { events, log } = collect();
-		expect(screen(request(chrome), "GET", "/articles/1", blocking, log)).toEqual({ kind: "allow" });
+		expect(screen(request(chrome), "GET", "/articles/1", blocking, log).action).toEqual({ kind: "allow" });
 		expect(events).toEqual([]);
 	});
 
@@ -157,7 +168,7 @@ describe("screen", () => {
 		const req = request(gptBot);
 		// The classifier reads the user-agent, so a header that can't be read makes it throw.
 		vi.spyOn(Headers.prototype, "get").mockImplementation(boom);
-		expect(screen(req, "GET", "/articles/1", blocking, () => {})).toEqual({ kind: "allow" });
+		expect(screen(req, "GET", "/articles/1", blocking, () => {}).action).toEqual({ kind: "allow" });
 		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});
@@ -167,16 +178,20 @@ describe("screen", () => {
 		["an async sink", () => Promise.reject(new Error("boom"))],
 	])("if %s throws, the request is still blocked and the error reported", async (_name, log: EventSink) => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
-		expect(screen(request(gptBot), "GET", "/articles/1", blocking, log)).toEqual({ kind: "block" });
-		await expect.poll(() => error.mock.calls.length).toBe(1);
+		const { action, logged } = screen(request(gptBot), "GET", "/articles/1", blocking, log);
+		expect(action).toEqual({ kind: "block" });
+		await logged;
+		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});
 
 	test("if building the log event throws, the request is still blocked and the error reported", async () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		vi.spyOn(Date.prototype, "toISOString").mockImplementation(boom);
-		expect(screen(request(gptBot), "GET", "/articles/1", blocking, () => {})).toEqual({ kind: "block" });
-		await expect.poll(() => error.mock.calls.length).toBe(1);
+		const { action, logged } = screen(request(gptBot), "GET", "/articles/1", blocking, () => {});
+		expect(action).toEqual({ kind: "block" });
+		await logged;
+		expect(error).toHaveBeenCalledOnce();
 		expect(error.mock.calls[0]).toContainEqual(new Error("boom"));
 	});
 });
