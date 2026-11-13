@@ -87,7 +87,6 @@ These never belong in the package:
 
 - How does Cloudflare's origin-controlled pricing work in practice? The Worker adapter's pricing endpoint depends on the answer. The team is confirming it with Cloudflare.
 - Does `@x402/core` handle a different price on each request cleanly? The pricing hook depends on the answer.
-- Is the license permissive or source-available?
 - Is the name Fairtoll available on GitHub, domains, and the USPTO register?
 
 ## How we know it's working
@@ -99,4 +98,4 @@ The package ships after the validation phase finds a clear publisher pain. The h
 
 ## License
 
-To be decided. See the open questions.
+Fairtoll is licensed under the [Apache License 2.0](LICENSE).
