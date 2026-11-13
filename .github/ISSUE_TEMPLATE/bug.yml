@@ -1,0 +1,27 @@
+name: Bug
+description: Fairtoll did something to a request that it shouldn't have.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The request you sent, what Fairtoll answered, and what you expected. A curl command and its output is ideal.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The config and options you passed to `fairtoll()`, with any keys removed.
+      render: js
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Fairtoll, Node, and Express or Next.js.
+      placeholder: fairtoll 0.1.0, Node 24.1.0, Express 5.2.1
+    validations:
+      required: true

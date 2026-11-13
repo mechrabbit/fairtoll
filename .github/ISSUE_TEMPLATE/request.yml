@@ -1,0 +1,17 @@
+name: Feature request
+description: Something Fairtoll doesn't do that your site needs.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What your site needs
+      description: The problem you have now, on a real site, rather than the feature you'd build. Fairtoll adds code only for a need that exists today.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do about it today
+    validations:
+      required: false
