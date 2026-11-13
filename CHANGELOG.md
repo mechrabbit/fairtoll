@@ -11,5 +11,5 @@ The first release.
 - Charging uses x402, paid in USDC on Base or Base Sepolia, settled by a facilitator straight to the publisher's wallet.
 - Adapters for Express 5 (`fairtoll/express`) and Next.js 16 (`fairtoll/next`).
 - An optional event log of AI requests and what Fairtoll did with each.
-- The config is checked when Fairtoll starts, and every problem is reported at once.
+- The config is checked when Fairtoll starts, and the error lists every invalid field it finds.
 - Fails open: if Fairtoll can't screen a request, or can't reach the facilitator, the page is served.

@@ -1,5 +1,5 @@
 name: Bug
-description: Fairtoll did something to a request that it shouldn't have.
+description: Fairtoll did something it shouldn't have, or failed to do something it should.
 labels: [bug]
 body:
   - type: textarea
@@ -13,7 +13,7 @@ body:
     id: config
     attributes:
       label: Config
-      description: The config and options you passed to `fairtoll()`, with any keys removed.
+      description: The config and options you passed to `fairtoll()`, with any secrets, such as facilitator API keys, removed.
       render: js
     validations:
       required: true
