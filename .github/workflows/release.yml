@@ -30,6 +30,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+      - run: node bench/latency.js --check
       # prepack builds dist/ from a clean slate before packing.
       - run: npm publish --provenance --access public
         env:
