@@ -3,7 +3,7 @@ import { createGate, type Gate, type Options } from "../core/index.js";
 
 export type { Options };
 
-/** The 403s and 402s this module made, so a site's own proxy can tell them from requests Fairtoll passed on. */
+/** The 403 and 402 responses this module made, which answered() looks up. */
 const answers = new WeakSet<Response>();
 
 /**

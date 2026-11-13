@@ -106,6 +106,6 @@ test("an invalid config is reported when the proxy loads, and every request is t
 	expect(answered(response)).toBe(false);
 });
 
-test("a response Fairtoll didn't make was not answered by it, whatever its status", () => {
+test("answered() is false for a 403 that Fairtoll didn't make", () => {
 	expect(answered(new Response("Forbidden", { status: 403 }))).toBe(false);
 });
