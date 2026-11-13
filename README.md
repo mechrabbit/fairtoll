@@ -1,6 +1,6 @@
 # Fairtoll
 
-Fairtoll is Express middleware that shows you which AI bots and agents read your site, and lets you block them or charge them for each page. Charges are paid in USDC through [x402](https://github.com/x402-foundation/x402), straight to your own wallet. Fairtoll never holds your money and never needs a private key.
+Fairtoll is middleware for Express and Next.js that shows you which AI bots and agents read your site, and lets you block them or charge them for each page. Charges are paid in USDC through [x402](https://github.com/x402-foundation/x402), straight to your own wallet. Fairtoll never holds your money and never needs a private key.
 
 You move through three steps, and each one is a change to the config:
 
@@ -15,7 +15,7 @@ Undo any step by changing the config back, and your site behaves exactly as befo
 This is version 0. Know these limits before you rely on it:
 
 - **Bots are recognised by their user-agent only.** Fairtoll matches the names that AI crawlers and agents send, such as `GPTBot`, `ClaudeBot` and `PerplexityBot`. A bot that pretends to be a browser is treated as a reader and served the page for free. So blocking and charging only catch bots that identify themselves honestly. Checking a bot's identity cryptographically is planned.
-- **Express only.** Fairtoll needs Express 5 and Node 20 or later. A Cloudflare Worker adapter is planned.
+- **Express and Next.js only.** Fairtoll needs Express 5 or Next.js 16, and Node 20 or later. A Cloudflare Worker adapter is planned.
 - **It only sees requests that reach your server.** If a CDN or cache sits in front of your site, read [Behind a CDN or cache](#behind-a-cdn-or-cache).
 
 ## Install
@@ -24,7 +24,7 @@ This is version 0. Know these limits before you rely on it:
 npm install fairtoll
 ```
 
-Fairtoll uses your app's `express`, version 5.
+Fairtoll uses your app's own `express` 5 or `next` 16. The examples below use Express. [On Next.js](#on-nextjs) shows the one change Next.js needs and what works differently there.
 
 ## Observe
 
@@ -51,9 +51,28 @@ The empty config `{}` observes only, so no response changes. Each request from a
 
 Without `log`, nothing is logged, because a path can carry a secret, such as a password reset token. You choose where events go. `log` can be async. Fairtoll doesn't wait for it, and if it fails, Fairtoll prints the error and the request is unaffected.
 
+## On Next.js
+
+On Next.js, Fairtoll is your app's proxy. Put it in `proxy.js`, or `proxy.ts`, at the root of your project or in `src/`:
+
+```js
+import { fairtoll } from "fairtoll/next";
+
+export const proxy = fairtoll({}, { log: (event) => console.log(JSON.stringify(event)) });
+```
+
+It takes the same config and options as on Express, so every example in this README works with `fairtoll` from `fairtoll/next` in place of `app.use(...)`. A few things work differently:
+
+- Don't give the proxy a `matcher`, so that it sees every path, and choose its paths with [rules](#rules). This is the Next.js version of [mounting it at the root](#mount-it-at-the-root).
+- Next.js allows one proxy. If your app already has one, keep Fairtoll's as a function, such as `const screen = fairtoll(config)`, and call `screen(request, event)` from yours before anything else. Pass on the `event`, or the log may not be written. [`demo/next/proxy.js`](demo/next/proxy.js) does this, and shows how to tell a response Fairtoll answered from one it passed on.
+- Rules match the path after your `basePath`, which is what Next.js routes by.
+- Rewrites in `next.config` run after the proxy, so a rewrite from a free path to a charged page gives the page away. Never point a rewrite from a free path at charged content.
+- A mistake in the config doesn't stop your app, because `next build` doesn't load the proxy and the mistake would only show in production. Instead Fairtoll prints the error when the proxy loads, and passes every request on unscreened, so nothing is blocked or charged. Check your server's log after you change the config.
+- A static export (`output: "export"`) has no proxy, so Fairtoll can't run there.
+
 ## Mount it at the root
 
-Always add Fairtoll with `app.use(fairtoll(...))`, before anything else that serves pages, and choose its paths with [rules](#rules). Don't mount it on a path, such as `app.use("/articles", fairtoll(...))`. A static file server mounted at the root can serve the same file under a path that never reaches a mounted middleware, such as `/x/..%2farticles/1`, so a bot could read it without being blocked or charged.
+On Express, always add Fairtoll with `app.use(fairtoll(...))`, before anything else that serves pages, and choose its paths with [rules](#rules). Don't mount it on a path, such as `app.use("/articles", fairtoll(...))`. A static file server mounted at the root can serve the same file under a path that never reaches a mounted middleware, such as `/x/..%2farticles/1`, so a bot could read it without being blocked or charged.
 
 ## The config
 
@@ -65,7 +84,7 @@ Always add Fairtoll with `app.use(fairtoll(...))`, before anything else that ser
 | `network` | `"base"` for real USDC, or `"base-sepolia"` for test USDC. |
 | `rules` | A list of rules, each deciding `ai` for some paths. |
 
-A mistake in the config throws when you call `fairtoll()`, so it shows when your app starts, not on a request. The error lists the problems it finds:
+On Express, a mistake in the config throws when you call `fairtoll()`, so it shows when your app starts, not on a request. On Next.js, the same error is printed instead, as [On Next.js](#on-nextjs) explains. The error lists the problems it finds:
 
 ```
 Invalid fairtoll config:
@@ -153,7 +172,7 @@ If the facilitator can't be reached, Fairtoll serves the page unpaid and prints 
 
 A facilitator settles x402 payments on the blockchain. Fairtoll never runs one or holds funds. By default it uses x402.org's facilitator, which only settles on testnets, so on `"base-sepolia"` you need nothing else.
 
-To charge real USDC on `"base"`, pass a facilitator that settles on mainnet, or `fairtoll()` throws when your app starts. [Coinbase's](https://docs.cdp.coinbase.com/x402/welcome) is one, and needs a Coinbase Developer Platform API key:
+To charge real USDC on `"base"`, pass a facilitator that settles on mainnet, or Fairtoll reports a config error. [Coinbase's](https://docs.cdp.coinbase.com/x402/welcome) is one, and needs a Coinbase Developer Platform API key:
 
 ```sh
 npm install @coinbase/x402
@@ -186,7 +205,7 @@ If your site is behind a cache:
 
 ## When something goes wrong
 
-Fairtoll fails open. If it can't read a request, classify it, or reach the facilitator, it prints the error and passes the request on to your app as if Fairtoll weren't there. Only a mistake in the config or options stops your app, and only at startup.
+Fairtoll fails open. If it can't read a request, classify it, or reach the facilitator, it prints the error and passes the request on to your app as if Fairtoll weren't there. On Express, only a mistake in the config or options stops your app, and only at startup. On Next.js, nothing does.
 
 ## Contributing
 
