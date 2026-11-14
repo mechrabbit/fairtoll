@@ -36,6 +36,9 @@
 			"default": "./dist/next/index.js"
 		}
 	},
+	"bin": {
+		"fairtoll": "./dist/cli/index.js"
+	},
 	"files": [
 		"dist"
 	],
