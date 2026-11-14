@@ -3,6 +3,22 @@ import { createGate, type Gate, type Options } from "../core/index.js";
 
 export type { Options };
 
+/** The 403 and 402 responses this module made, which answered() looks up. */
+const answers = new WeakSet<Response>();
+
+/**
+ * Whether Fairtoll answered the request itself, with a 403 or a 402, rather than passing it on. A site with its own
+ * proxy returns such a response unchanged:
+ *
+ *     const response = await screen(request, event);
+ *     if (answered(response)) return response;
+ *
+ * Every other response, including one Fairtoll passed on after failing open, is false.
+ */
+export function answered(response: Response): boolean {
+	return answers.has(response);
+}
+
 /**
  * A Next.js 16 proxy (`proxy.ts`) that screens every request, answers a request the config blocks with a 403,
  * charges a request the config charges, and passes the rest on unchanged:
@@ -36,7 +52,11 @@ export function fairtoll(input: unknown, options: Options = {}): (request: NextR
 			// A site's own proxy that calls this one without the event loses the log, not the block or the charge.
 			event?.waitUntil(logged);
 			const result = await outcome;
-			if (result.kind === "respond") return new Response(result.body, { status: result.status, headers: result.headers });
+			if (result.kind === "respond") {
+				const response = new Response(result.body, { status: result.status, headers: result.headers });
+				answers.add(response);
+				return response;
+			}
 			return NextResponse.next({ headers: result.headers });
 		} catch (error) {
 			console.error("fairtoll: could not screen the request, so it was passed through unscreened:", error);
