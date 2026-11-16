@@ -20,7 +20,7 @@ The payment goes to the config's `payTo` address on Base Sepolia, through x402.o
 
 ## It can't spend real money
 
-The run always charges on Base Sepolia, even when the config's `network` is `"base"`, and the test wallet only signs payments on Base Sepolia. So the key can't move funds on Base mainnet. Fairtoll reads the key from `FAIRTOLL_TESTNET_KEY` for the run and never stores it. Use a wallet made for testing anyway, never one that holds real funds.
+The run always charges on Base Sepolia, even when the config's `network` is `"base"`, and the test wallet only signs payments on Base Sepolia. So the run can't spend funds on Base mainnet. Fairtoll reads the key from `FAIRTOLL_TESTNET_KEY` for the run and never stores it. Use a wallet made for testing anyway, never one that holds real funds.
 
 ## Getting a test wallet and test USDC
 

@@ -140,7 +140,7 @@ function chargedPath(config: Config): { path: string; charge: Charge } | undefin
 	});
 	const request = new Request("http://localhost/", { headers: { "user-agent": agentUserAgent } });
 	for (const path of candidates) {
-		const action = screen(request, "GET", path, config);
+		const { action } = screen(request, "GET", path, config);
 		if (action.kind === "charge") return { path, charge: action.charge };
 	}
 	return undefined;

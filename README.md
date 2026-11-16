@@ -191,8 +191,13 @@ Any facilitator works if you pass an object with its `url`, along with any optio
 
 Your config works the same on `"base-sepolia"`, with test USDC that has no value, so charge there before `"base"`.
 
-<!-- TODO(#48): describe the testnet command once it exists. -->
-A command that sends a paid request through your config on testnet, so you see each step settle before you charge real money, is coming in [#48](https://github.com/mechrabbit/fairtoll/issues/48).
+To see a paid request settle through your config before you charge real money, pay for one page on testnet with a test wallet:
+
+```sh
+FAIRTOLL_TESTNET_KEY=0x... npx fairtoll testnet config.json
+```
+
+It always charges on Base Sepolia, even when your config says `"base"`, and the wallet only signs payments there, so the run can't spend real money. [docs/testnet.md](docs/testnet.md) shows what it prints and how to get a test wallet and test USDC.
 
 ## Behind a CDN or cache
 
