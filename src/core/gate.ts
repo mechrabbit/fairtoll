@@ -122,6 +122,11 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 }
 
 const defaultSiteUrl = "https://fairtoll.net/v1/config";
+/**
+ * This package's version, sent with each config fetch, so fairtoll.net never sends a field this version can't
+ * honour, and can tell when no site uses an old URL any more. A test keeps it the same as package.json's.
+ */
+export const packageVersion = "0.1.0";
 /** How long a loaded config is used before a request fetches it again. A failed fetch waits as long. */
 const refreshAfterMs = 60_000;
 /** How long requests wait for the first fetch, so a fresh process doesn't serve free pages while it runs. */
@@ -157,7 +162,7 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 	let firstWaitEndsAt: number | undefined;
 
 	async function load(fetchNumber: number): Promise<void> {
-		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(fetchTimeoutMs) });
+		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}`, "Fairtoll-Version": packageVersion }, signal: AbortSignal.timeout(fetchTimeoutMs) });
 		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
 		const body = await response.text();
 		// The same config again keeps the gate, and its chargers' started facilitators.

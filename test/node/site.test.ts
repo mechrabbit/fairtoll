@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { createGate } from "../../src/core/index.js";
+import { packageVersion } from "../../src/core/gate.js";
 
 const wallet = { payTo: `0x${"a".repeat(40)}`, network: "base-sepolia" } as const;
 const site = { key: "site-key", url: "https://service.test/v1/config" };
@@ -41,6 +43,7 @@ test("the first request waits for the fetched config, sent with the site key", a
 	const [url, init] = fetchMock.mock.calls[0] ?? [];
 	expect(url).toBe(site.url);
 	expect(new Headers(init?.headers).get("authorization")).toBe("Bearer site-key");
+	expect(new Headers(init?.headers).get("fairtoll-version")).toBe(packageVersion);
 });
 
 test("the fetched config charges to the wallet in the publisher's own config", async () => {
@@ -167,4 +170,8 @@ test("fields this version doesn't know are ignored with a warning, and the rest 
 	expect((await gate.check(bot(), "GET", "/free/1").outcome).kind).toBe("pass");
 	expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("which were ignored: schedule, rules[0].note"));
 	expect(console.error).not.toHaveBeenCalled();
+});
+
+test("the version sent to fairtoll.net is the package's", () => {
+	expect(packageVersion).toBe(JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version);
 });
