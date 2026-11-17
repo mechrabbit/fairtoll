@@ -42,8 +42,13 @@ function render_settings_page(): void {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	$text   = (string) get_option( CONFIG_OPTION, '' );
-	$parsed = parse_config_json( $text );
+	$text = (string) get_option( CONFIG_OPTION, '' );
+	try {
+		$parsed = parse_config_json( $text );
+	} catch ( \Throwable $e ) {
+		// Screening throws the same way, so every request is let through. The page still shows, so the config can be fixed.
+		$parsed = failed( array( error( 'config', 'could not be checked: ' . $e->getMessage() ) ) );
+	}
 	?>
 	<div class="wrap">
 		<h1>Fairtoll</h1>

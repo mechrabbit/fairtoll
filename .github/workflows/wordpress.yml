@@ -28,3 +28,5 @@ jobs:
           coverage: none
       - run: composer install --no-interaction --no-progress
       - run: vendor/bin/phpunit
+      # The tests load src/config.php and src/screen.php, but not the WordPress glue, so check that it parses.
+      - run: php -l fairtoll.php && php -l src/admin.php

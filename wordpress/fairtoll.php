@@ -49,6 +49,12 @@ function handle_request(): void {
 		return;
 	}
 	try {
+		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : null;
+		// A human request is always allowed and isn't logged, because that would add a line to the log for every
+		// page view. So it skips reading the config.
+		if ( 'human' === classify( $user_agent )[0] ) {
+			return;
+		}
 		$parsed = parse_config_json( (string) get_option( CONFIG_OPTION, '' ) );
 		if ( ! $parsed['ok'] ) {
 			// The settings page shows the errors.
@@ -56,26 +62,31 @@ function handle_request(): void {
 		}
 		// The path WordPress routes by, without the query string. It isn't decoded, so a rule matches it as it
 		// would a path in the Express adapter.
-		$path       = explode( '?', (string) $_SERVER['REQUEST_URI'], 2 )[0];
-		$method     = (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' );
-		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : null;
-		$screened   = screen( $parsed['config'], $method, $path, $user_agent, isset( $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] ) );
+		$path     = explode( '?', (string) $_SERVER['REQUEST_URI'], 2 )[0];
+		$method   = (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' );
+		$screened = screen( $parsed['config'], $method, $path, $user_agent, isset( $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] ) );
 	} catch ( \Throwable $e ) {
 		error_log( 'fairtoll: screening a request failed, so the request was passed through unscreened: ' . $e->getMessage() );
 		return;
 	}
-	// A human request isn't logged, because that would add a line to the log for every page view.
-	if ( 'human' !== $screened['class'] && get_option( LOG_OPTION ) ) {
+	if ( get_option( LOG_OPTION ) ) {
 		log_event( $path, $screened );
 	}
-	if ( 'block' === $screened['action'] ) {
-		// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
-		http_response_code( 403 );
-		header( 'Cache-Control: no-store' );
-		header( 'Content-Type: text/plain; charset=utf-8' );
-		echo "This site does not allow AI bots or agents.\n";
-		exit;
+	if ( 'block' !== $screened['action'] ) {
+		return;
 	}
+	// Once output has started, the status and headers can't be set, and a 200 with the block message could be
+	// cached and shown to readers.
+	if ( headers_sent() ) {
+		error_log( 'fairtoll: a blocked request was let through, because output had already started, so the 403 could not be sent' );
+		return;
+	}
+	// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
+	http_response_code( 403 );
+	header( 'Cache-Control: no-store' );
+	header( 'Content-Type: text/plain; charset=utf-8' );
+	echo "This site does not allow AI bots or agents.\n";
+	exit;
 }
 
 /**
