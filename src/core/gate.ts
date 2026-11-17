@@ -1,5 +1,5 @@
 import { createCharger, type Charger, type FacilitatorConfig } from "./charge.js";
-import { parseConfig, type Charge } from "./config.js";
+import { isPlainObject, parseConfig, type Charge } from "./config.js";
 import { allowsEverything, screen, type Action, type EventSink } from "./screen.js";
 
 export interface Options {
@@ -14,6 +14,18 @@ export interface Options {
 	 * Coinbase's from `createFacilitatorConfig` in `@coinbase/x402`.
 	 */
 	readonly facilitator?: FacilitatorConfig;
+	/**
+	 * Loads the config from the publisher's site on fairtoll.net, so prices and rules can change without a
+	 * redeploy. Without it nothing contacts fairtoll.net. See `createSiteGate`.
+	 */
+	readonly site?: Site;
+}
+
+export interface Site {
+	/** The site's key from fairtoll.net. Keep it out of source control, such as in an environment variable. */
+	readonly key: string;
+	/** Where the config is fetched from. It defaults to fairtoll.net's, and is only for testing. */
+	readonly url?: string;
 }
 
 /**
@@ -25,8 +37,9 @@ export type Outcome =
 	| { readonly kind: "pass"; readonly headers: Readonly<Record<string, string>> };
 
 /**
- * `outcome` never rejects. `logged` settles once the request's log has, and never rejects, so a runtime
- * that can stop work once the response is sent can keep it alive with `waitUntil`.
+ * `outcome` never rejects. `logged` settles once the request's log has, along with any config fetch the request
+ * started, and never rejects, so a runtime that can stop work once the response is sent can keep it alive with
+ * `waitUntil`.
  */
 export interface Checked {
 	readonly outcome: Promise<Outcome>;
@@ -52,6 +65,8 @@ const pass: Outcome = Object.freeze({ kind: "pass", headers: Object.freeze({}) }
  * An invalid config or option throws here, so the adapter can report a mistake before it serves a request.
  */
 export function createGate(input: unknown, options: Options = {}): Gate {
+	const { site, ...rest } = options;
+	if (site !== undefined) return createSiteGate(input, site, (config) => createGate(config, rest));
 	const result = parseConfig(input);
 	if (!result.ok) {
 		throw new Error(`Invalid fairtoll config:\n${result.errors.map((e) => `  ${e.field} ${e.message}`).join("\n")}`);
@@ -105,7 +120,93 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 	};
 }
 
+const defaultSiteUrl = "https://fairtoll.net/v1/config";
+/** How long a loaded config is used before a request fetches it again. A failed fetch waits as long. */
+const refreshAfterMs = 60_000;
+/** How long a request waits for the first fetch, so a fresh process doesn't serve free pages while it runs. */
+const firstFetchWaitMs = 1_000;
+const fetchTimeoutMs = 5_000;
+
+/**
+ * A gate whose config comes from the site on fairtoll.net. The fetched config sets `ai`, `price` and `rules`, and
+ * `payTo` and `network` always come from `input`, so the service can change prices but never where money goes.
+ * - Until a fetch succeeds, `input` is the config, so it doubles as the fallback.
+ * - Until the first fetch finishes, each request waits for it, for up to `firstFetchWaitMs`.
+ * - After that no request waits. One that finds the config older than `refreshAfterMs` starts a fetch in the
+ *   background, and it and every request until the fetch ends use the config already loaded.
+ * - A fetch that fails, or brings a config `build` refuses, prints the error and keeps the last config.
+ * `build` makes the gate for one config, and throws on an invalid one.
+ */
+function createSiteGate(input: unknown, site: Site, build: (config: unknown) => Gate): Gate {
+	const { key, url } = siteOptions(site);
+	// Throws on an invalid input, so it's a plain object after this line.
+	let gate = build(input);
+	const local = input as Record<string, unknown>;
+	const wallet = { payTo: local.payTo, network: local.network };
+
+	let loadedBody: string | undefined;
+	let fetching: Promise<void> | undefined;
+	let nextFetchAt = 0;
+	let firstFetchEnded = false;
+
+	async function load(): Promise<void> {
+		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(fetchTimeoutMs) });
+		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+		const body = await response.text();
+		// The same config again keeps the gate, and its chargers' started facilitators.
+		if (body === loadedBody) return;
+		const fetched: unknown = JSON.parse(body);
+		if (!isPlainObject(fetched)) throw new Error("the fetched config is not a JSON object");
+		if (Object.hasOwn(fetched, "payTo") || Object.hasOwn(fetched, "network")) {
+			throw new Error("the fetched config sets payTo or network, which only the config in your code can set");
+		}
+		gate = build({ ...fetched, ...wallet });
+		loadedBody = body;
+	}
+
+	/** The fetch in progress, starting one if the config is due. It never rejects. */
+	function refresh(): Promise<void> {
+		if (fetching === undefined && Date.now() >= nextFetchAt) {
+			fetching = load()
+				.catch((error: unknown) => console.error(`fairtoll: could not load the config from ${url}, so the last one is kept:`, error))
+				.finally(() => {
+					fetching = undefined;
+					firstFetchEnded = true;
+					nextFetchAt = Date.now() + refreshAfterMs;
+				});
+		}
+		return fetching ?? Promise.resolve();
+	}
+
+	return {
+		idle: false,
+		check(request, method, path) {
+			const fetched = refresh();
+			const ready = firstFetchEnded ? Promise.resolve() : Promise.race([fetched, delay(firstFetchWaitMs)]);
+			const checked = ready.then(() => gate.check(request, method, path));
+			return {
+				outcome: checked.then((c) => c.outcome),
+				logged: Promise.all([checked.then((c) => c.logged), fetched]).then(() => undefined),
+			};
+		},
+	};
+}
+
+/** The site's key and url, or a throw saying which is wrong. */
+function siteOptions(site: unknown): { key: string; url: string } {
+	if (typeof site !== "object" || site === null) throw new Error("Invalid fairtoll options: site must be an object with a key");
+	const { key, url: given } = site as Record<string, unknown>;
+	const url = given ?? defaultSiteUrl;
+	if (typeof key !== "string" || key === "") throw new Error("Invalid fairtoll options: site.key must be a non-empty string");
+	if (!isHttpUrl(url)) throw new Error("Invalid fairtoll options: site.url must be an http or https url");
+	return { key, url };
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** `URL.canParse` alone accepts "localhost:8080", whose protocol is "localhost:", so the facilitator could never be reached. */
-function isHttpUrl(url: unknown): boolean {
+function isHttpUrl(url: unknown): url is string {
 	return typeof url === "string" && URL.canParse(url) && ["http:", "https:"].includes(new URL(url).protocol);
 }

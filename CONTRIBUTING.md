@@ -27,7 +27,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 3. **Never break the site.** Fail open. If the package throws, the page serves normally.
 4. **Run on and off Cloudflare from the same config.** A policy written for the Express adapter works unchanged in the Cloudflare Worker adapter.
 5. **Hold no money and no keys.** Payments settle directly to the publisher's wallet. The package never takes custody and never needs a private key.
-6. **Open the door to the hosted service without nagging.** The package connects through a pricing hook and an optional event feed. Both are off by default, and the package never prompts anyone to sign up.
+6. **Open the door to the hosted service without nagging.** The package connects through a pricing hook, an optional event feed, and an optional config loaded from the publisher's site on the hosted service. All are off by default, and the package never prompts anyone to sign up. A loaded config never sets the wallet, so the hosted service can't redirect payments.
 
 ## Rules for deciding
 

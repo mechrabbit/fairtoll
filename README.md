@@ -199,6 +199,25 @@ FAIRTOLL_TESTNET_KEY=0x... npx fairtoll testnet config.json
 
 It always charges on Base Sepolia, even when your config says `"base"`, and the wallet only signs payments there, so the run can't spend real money. [docs/testnet.md](docs/testnet.md) shows what it prints and how to get a test wallet and test USDC.
 
+## Set prices from fairtoll.net
+
+If you have a site on fairtoll.net, Fairtoll can load its config from there, so you change prices and rules in the dashboard without a redeploy. Pass the site's key, and keep your wallet and network in your own code:
+
+```js
+app.use(
+	fairtoll(
+		{ payTo: "0xYourWalletAddress", network: "base" },
+		{ site: { key: process.env.FAIRTOLL_SITE_KEY }, facilitator },
+	),
+);
+```
+
+- The config from fairtoll.net sets `ai`, `price` and `rules`. Your wallet and network only ever come from your code, so fairtoll.net can't change where your money goes. A config from fairtoll.net that sets `payTo` or `network` is refused.
+- The first request after your app starts waits up to a second for the config. After that no request waits: Fairtoll fetches the config again in the background once it is a minute old, so a change in the dashboard reaches your site within about a minute.
+- Until a fetch succeeds, the config in your code applies, so you can write your whole config there as a fallback.
+- If fairtoll.net can't be reached, or sends a config with a mistake in it, Fairtoll prints the error and keeps the last config it had. Your pages keep loading either way.
+- Without `site`, Fairtoll never contacts fairtoll.net. Events passed to `log` are never sent there.
+
 ## Behind a CDN or cache
 
 Fairtoll only acts on requests that reach your server. A CDN or cache in front of your site can answer a bot with a page it cached for a reader, without asking your server, so the bot is neither blocked nor charged. Fairtoll's 403 and 402 responses are marked `no-store` so that a cache never replays them, but your pages themselves can still be cached.

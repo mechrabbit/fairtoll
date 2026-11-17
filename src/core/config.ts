@@ -292,7 +292,7 @@ function isWalletAddress(value: unknown): value is string {
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
-function isPlainObject(input: unknown): input is Record<string, unknown> {
+export function isPlainObject(input: unknown): input is Record<string, unknown> {
 	if (typeof input !== "object" || input === null) return false;
 	const proto: unknown = Object.getPrototypeOf(input);
 	return proto === Object.prototype || proto === null;
