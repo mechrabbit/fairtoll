@@ -36,7 +36,7 @@ curl -X PUT -H 'Content-Type: application/json' -d '{"ai":"charge","price":"0.01
 curl -X DELETE http://localhost:3000/service/v1/config
 ```
 
-A change shows on the first request after the config is a minute old, plus one: the request that starts the fetch is served on the config already loaded.
+A change shows from the second request after the config is a minute old, because the request that starts the fetch is served on the config already loaded.
 
 The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
 

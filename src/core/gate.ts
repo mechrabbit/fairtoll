@@ -16,7 +16,8 @@ export interface Options {
 	readonly facilitator?: FacilitatorConfig;
 	/**
 	 * Loads the config from the publisher's site on fairtoll.net, so prices and rules can change without a
-	 * redeploy. Without it nothing contacts fairtoll.net. See `createSiteGate`.
+	 * redeploy. The loaded config never sets `payTo` or `network`, which come from the config passed here, and it
+	 * falls back to that config until a fetch succeeds. Without it nothing contacts fairtoll.net.
 	 */
 	readonly site?: Site;
 }
@@ -123,7 +124,7 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 const defaultSiteUrl = "https://fairtoll.net/v1/config";
 /** How long a loaded config is used before a request fetches it again. A failed fetch waits as long. */
 const refreshAfterMs = 60_000;
-/** How long a request waits for the first fetch, so a fresh process doesn't serve free pages while it runs. */
+/** How long requests wait for the first fetch, so a fresh process doesn't serve free pages while it runs. */
 const firstFetchWaitMs = 1_000;
 const fetchTimeoutMs = 5_000;
 
@@ -131,7 +132,8 @@ const fetchTimeoutMs = 5_000;
  * A gate whose config comes from the site on fairtoll.net. The fetched config sets `ai`, `price` and `rules`, and
  * `payTo` and `network` always come from `input`, so the service can change prices but never where money goes.
  * - Until a fetch succeeds, `input` is the config, so it doubles as the fallback.
- * - Until the first fetch finishes, each request waits for it, for up to `firstFetchWaitMs`.
+ * - Requests wait for the first fetch, until `firstFetchWaitMs` after it started, so a slow fetch delays only
+ *   the requests in that window, and none by more than `firstFetchWaitMs`.
  * - After that no request waits. One that finds the config older than `refreshAfterMs` starts a fetch in the
  *   background, and it and every request until the fetch ends use the config already loaded.
  * - A fetch that fails, or brings a config `build` refuses, prints the error and keeps the last config.
@@ -148,6 +150,7 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 	let fetching: Promise<void> | undefined;
 	let nextFetchAt = 0;
 	let firstFetchEnded = false;
+	let firstWaitEndsAt: number | undefined;
 
 	async function load(): Promise<void> {
 		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(fetchTimeoutMs) });
@@ -182,7 +185,9 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		idle: false,
 		check(request, method, path) {
 			const fetched = refresh();
-			const ready = firstFetchEnded ? Promise.resolve() : Promise.race([fetched, delay(firstFetchWaitMs)]);
+			firstWaitEndsAt ??= Date.now() + firstFetchWaitMs;
+			const wait = firstFetchEnded ? 0 : firstWaitEndsAt - Date.now();
+			const ready = wait > 0 ? Promise.race([fetched, delay(wait)]) : Promise.resolve();
 			const checked = ready.then(() => gate.check(request, method, path));
 			return {
 				outcome: checked.then((c) => c.outcome),

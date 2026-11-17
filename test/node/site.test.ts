@@ -119,6 +119,15 @@ test("the first request waits at most a second, then uses the local config", asy
 	expect(fetchMock).toHaveBeenCalledOnce();
 });
 
+test("a request a second after the first fetch started doesn't wait for it", async () => {
+	fetchMock.mockImplementationOnce(() => new Promise(() => {}));
+	const gate = createGate({ ...wallet, ai: "block" }, { site });
+	const first = gate.check(bot(), "GET", "/").outcome;
+	await vi.advanceTimersByTimeAsync(1_000);
+	expect(await first).toMatchObject({ kind: "respond", status: 403 });
+	expect(await gate.check(bot(), "GET", "/").outcome).toMatchObject({ kind: "respond", status: 403 });
+});
+
 test("an invalid site option or local config throws at startup", () => {
 	expect(() => createGate(wallet, { site: { key: "" } })).toThrow("site.key must be a non-empty string");
 	expect(() => createGate(wallet, { site: { key: "k", url: "localhost:8080" } })).toThrow("site.url must be an http or https url");
