@@ -8,7 +8,8 @@ This version observes and blocks. It can't charge yet: a rule that charges is ac
 
 - **Bots are recognised by their user-agent only.** A bot that pretends to be a browser is treated as a reader.
 - **A page cache can serve a blocked bot a cached page.** If a caching plugin or your host caches pages, the cache can answer a bot without asking WordPress, so the plugin never sees it. Keeping blocking working with a page cache is planned. Until then, exclude the paths you block from the cache, or block AI bots at your host or CDN too.
-- **Rules match the URL path, and WordPress serves your content at more than one URL.** The REST API (`/wp-json/...`) and feeds (`/feed/`, `/my-post/feed/`) carry post content too. To keep AI bots off your content, block `/wp-json/*` and `/feed/*` as well, write rules for sections as wildcards, such as `/articles/*`, which also cover each post's own feed, or block everywhere with the top-level `"ai": "block"`.
+- **Rules match the URL path, and WordPress serves your content at more than one URL.** A post's own feed and embed are under its path (`/my-post/feed/`, `/my-post/embed/`), so write a rule for a post or page as a wildcard, such as `/my-post/*`, which covers them, and a section as `/articles/*`. The REST API (`/wp-json/...`) and feeds (`/feed/`) carry post content too, so block `/wp-json/*` and `/feed/*` as well. Some URLs pick the content in the query string, which rules don't match: the REST API also answers at `/?rest_route=/...`, and a POST to `/?page_id=2` serves that page. Only blocking everywhere, with the top-level `"ai": "block"`, covers those.
+- **Rules match the whole path.** If WordPress is installed in a subdirectory, such as `example.com/blog`, include it: `/blog/articles/*`.
 
 ## Install
 
@@ -22,13 +23,13 @@ Then in wp-admin, go to **Plugins > Add New Plugin > Upload Plugin**, choose `fa
 
 ## Write the config
 
-Go to **Settings > Fairtoll** and paste or edit the config. It's JSON, with the fields described in [The config](../README.md#the-config). For example, to block AI bots on everything under `/articles` and on one page:
+Go to **Settings > Fairtoll** and paste or edit the config. It's JSON, with the fields described in [The config](../README.md#the-config). For example, to block AI bots on everything under `/articles` and on one page, with its feed and embed:
 
 ```json
 {
 	"rules": [
 		{ "path": "/articles/*", "ai": "block" },
-		{ "path": "/members-only", "ai": "block" }
+		{ "path": "/members-only/*", "ai": "block" }
 	]
 }
 ```

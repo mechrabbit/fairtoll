@@ -28,6 +28,7 @@ if [ ! -f "$site/wp-config.php" ]; then
 	php demo/wordpress/install.php "$site" "http://localhost:$port"
 fi
 echo "WordPress is at http://localhost:$port, and wp-admin's user and password are both demo."
-# PHP's built-in server sends a path that isn't a file to index.php, as a host's rewrite rules do, and prints
-# what the plugin writes to the PHP error log.
+# PHP's built-in server sends a path that isn't a file to index.php, as a host's rewrite rules do, except a missing
+# path with a file extension, such as /robots.txt, which gets its own 404. It prints what the plugin writes to the
+# PHP error log.
 exec php -S "localhost:$port" -t "$site"
