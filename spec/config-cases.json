@@ -1,0 +1,789 @@
+[
+	{
+		"name": "an empty config, which only observes",
+		"config": {},
+		"errors": []
+	},
+	{
+		"name": "a null ai, which takes the default",
+		"config": {
+			"ai": null
+		},
+		"errors": []
+	},
+	{
+		"name": "blocking",
+		"config": {
+			"ai": "block"
+		},
+		"errors": []
+	},
+	{
+		"name": "charging, with a price, a wallet and a network",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": []
+	},
+	{
+		"name": "a wallet in lower case, which has no checksum",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0xabababababababababababababababababababab",
+			"network": "base-sepolia"
+		},
+		"errors": []
+	},
+	{
+		"name": "a wallet in upper case, which has no checksum",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0xABABABABABABABABABABABABABABABABABABABAB",
+			"network": "base-sepolia"
+		},
+		"errors": []
+	},
+	{
+		"name": "a mixed-case wallet with the right EIP-55 checksum",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+			"network": "base-sepolia"
+		},
+		"errors": []
+	},
+	{
+		"name": "the charge fields kept while ai blocks, so switching is one change",
+		"config": {
+			"ai": "block",
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": []
+	},
+	{
+		"name": "rules, one of them taking the top-level price",
+		"config": {
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia",
+			"rules": [
+				{
+					"path": "/premium/*",
+					"ai": "charge",
+					"price": "0.01"
+				},
+				{
+					"path": "/news/*",
+					"ai": "charge"
+				},
+				{
+					"path": "/private/*",
+					"ai": "block"
+				},
+				{
+					"path": "/premium/free/*",
+					"ai": "allow"
+				}
+			]
+		},
+		"errors": []
+	},
+	{
+		"name": "null rules, which are no rules",
+		"config": {
+			"rules": null
+		},
+		"errors": []
+	},
+	{
+		"name": "a string",
+		"config": "{}",
+		"errors": [
+			{
+				"field": "config",
+				"message": "must be a plain object"
+			}
+		]
+	},
+	{
+		"name": "null",
+		"config": null,
+		"errors": [
+			{
+				"field": "config",
+				"message": "must be a plain object"
+			}
+		]
+	},
+	{
+		"name": "an array",
+		"config": [],
+		"errors": [
+			{
+				"field": "config",
+				"message": "must be a plain object"
+			}
+		]
+	},
+	{
+		"name": "a number",
+		"config": 1,
+		"errors": [
+			{
+				"field": "config",
+				"message": "must be a plain object"
+			}
+		]
+	},
+	{
+		"name": "a private key",
+		"config": {
+			"privateKey": "0xabc"
+		},
+		"errors": [
+			{
+				"field": "privateKey",
+				"message": "is not a known field"
+			}
+		]
+	},
+	{
+		"name": "an ai action Fairtoll doesn't have",
+		"config": {
+			"ai": "license"
+		},
+		"errors": [
+			{
+				"field": "ai",
+				"message": "must be \"allow\", \"block\" or \"charge\""
+			}
+		]
+	},
+	{
+		"name": "an ai that isn't a string",
+		"config": {
+			"ai": true
+		},
+		"errors": [
+			{
+				"field": "ai",
+				"message": "must be \"allow\", \"block\" or \"charge\""
+			}
+		]
+	},
+	{
+		"name": "charging without a price, wallet or network",
+		"config": {
+			"ai": "charge"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "is needed when ai is \"charge\""
+			},
+			{
+				"field": "payTo",
+				"message": "is needed when ai is \"charge\""
+			},
+			{
+				"field": "network",
+				"message": "is needed when ai is \"charge\""
+			}
+		]
+	},
+	{
+		"name": "a price as a number",
+		"config": {
+			"ai": "charge",
+			"price": 0.002,
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a price with more than 6 decimals",
+		"config": {
+			"ai": "charge",
+			"price": "0.0000001",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a zero price",
+		"config": {
+			"ai": "charge",
+			"price": "0.000",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a negative price",
+		"config": {
+			"ai": "charge",
+			"price": "-1",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a price with a dollar sign",
+		"config": {
+			"ai": "charge",
+			"price": "$0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a price with a trailing newline",
+		"config": {
+			"ai": "charge",
+			"price": "0.002\n",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a wallet that isn't an address",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "my-wallet.eth",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum"
+			}
+		]
+	},
+	{
+		"name": "the zero address",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x0000000000000000000000000000000000000000",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum"
+			}
+		]
+	},
+	{
+		"name": "a mixed-case wallet whose checksum is wrong",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum"
+			}
+		]
+	},
+	{
+		"name": "a wallet with a trailing newline",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0xabababababababababababababababababababab\n",
+			"network": "base-sepolia"
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "must be a wallet address other than the zero address: 0x and 40 hex digits, all in one case or with its EIP-55 checksum"
+			}
+		]
+	},
+	{
+		"name": "a network Fairtoll doesn't charge on",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "solana"
+		},
+		"errors": [
+			{
+				"field": "network",
+				"message": "must be one of \"base\", \"base-sepolia\""
+			}
+		]
+	},
+	{
+		"name": "a network inside an array",
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": [
+				"base"
+			]
+		},
+		"errors": [
+			{
+				"field": "network",
+				"message": "must be one of \"base\", \"base-sepolia\""
+			}
+		]
+	},
+	{
+		"name": "a bad price even when not charging",
+		"config": {
+			"ai": "block",
+			"price": "free"
+		},
+		"errors": [
+			{
+				"field": "price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "rules that aren't an array",
+		"config": {
+			"rules": {
+				"path": "/a",
+				"ai": "block"
+			}
+		},
+		"errors": [
+			{
+				"field": "rules",
+				"message": "must be an array of rules"
+			}
+		]
+	},
+	{
+		"name": "a rule that isn't an object",
+		"config": {
+			"rules": [
+				"/premium/*"
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0]",
+				"message": "must be a plain object"
+			}
+		]
+	},
+	{
+		"name": "a rule without a path or ai",
+		"config": {
+			"rules": [
+				{}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "is needed in every rule"
+			},
+			{
+				"field": "rules[0].ai",
+				"message": "is needed in every rule"
+			}
+		]
+	},
+	{
+		"name": "a rule with a field Fairtoll doesn't have",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "block",
+					"payTo": "0x00000000000000000000000000000000000000AA"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].payTo",
+				"message": "is not a known field"
+			}
+		]
+	},
+	{
+		"name": "a relative rule path",
+		"config": {
+			"rules": [
+				{
+					"path": "premium/*",
+					"ai": "block"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			}
+		]
+	},
+	{
+		"name": "a wildcard that isn't a final /*",
+		"config": {
+			"rules": [
+				{
+					"path": "/premium*",
+					"ai": "block"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			}
+		]
+	},
+	{
+		"name": "a wildcard inside a path",
+		"config": {
+			"rules": [
+				{
+					"path": "/*/premium",
+					"ai": "block"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			}
+		]
+	},
+	{
+		"name": "a percent-encoded * that would decode to a wildcard",
+		"config": {
+			"rules": [
+				{
+					"path": "/premium/%2a",
+					"ai": "block"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			}
+		]
+	},
+	{
+		"name": "a wildcard rule path with a trailing newline",
+		"config": {
+			"rules": [
+				{
+					"path": "/premium/*\n",
+					"ai": "block"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			}
+		]
+	},
+	{
+		"name": "a rule ai Fairtoll doesn't have",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "license"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].ai",
+				"message": "must be \"allow\", \"block\" or \"charge\""
+			}
+		]
+	},
+	{
+		"name": "a bad rule price",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "block",
+					"price": "free"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].price",
+				"message": "must be a price in dollars above zero, with at most 6 decimals, written as a string such as \"0.002\""
+			}
+		]
+	},
+	{
+		"name": "a rule that charges with no price at all",
+		"config": {
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia",
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "charge"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].price",
+				"message": "is needed when the rule's ai is \"charge\" and there is no top-level price"
+			}
+		]
+	},
+	{
+		"name": "a rule that charges with no wallet or network",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "charge",
+					"price": "0.01"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "is needed when a rule's ai is \"charge\""
+			},
+			{
+				"field": "network",
+				"message": "is needed when a rule's ai is \"charge\""
+			}
+		]
+	},
+	{
+		"name": "two rules that charge with no wallet or network, which is reported once",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "charge",
+					"price": "0.01"
+				},
+				{
+					"path": "/b",
+					"ai": "charge",
+					"price": "0.01"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "is needed when a rule's ai is \"charge\""
+			},
+			{
+				"field": "network",
+				"message": "is needed when a rule's ai is \"charge\""
+			}
+		]
+	},
+	{
+		"name": "rules that charge with no price, wallet or network",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "charge"
+				},
+				{
+					"path": "/b",
+					"ai": "charge"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[0].price",
+				"message": "is needed when the rule's ai is \"charge\" and there is no top-level price"
+			},
+			{
+				"field": "payTo",
+				"message": "is needed when a rule's ai is \"charge\""
+			},
+			{
+				"field": "network",
+				"message": "is needed when a rule's ai is \"charge\""
+			},
+			{
+				"field": "rules[1].price",
+				"message": "is needed when the rule's ai is \"charge\" and there is no top-level price"
+			}
+		]
+	},
+	{
+		"name": "charging with no wallet or network, and a rule that charges",
+		"config": {
+			"ai": "charge",
+			"price": "0.01",
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "charge"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "payTo",
+				"message": "is needed when ai is \"charge\""
+			},
+			{
+				"field": "network",
+				"message": "is needed when ai is \"charge\""
+			}
+		]
+	},
+	{
+		"name": "two rules for the same paths",
+		"config": {
+			"rules": [
+				{
+					"path": "/a/*",
+					"ai": "block"
+				},
+				{
+					"path": "/A/*",
+					"ai": "allow"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[1].path",
+				"message": "matches the same paths as rules[0]"
+			}
+		]
+	},
+	{
+		"name": "an exact rule and its trailing-slash twin",
+		"config": {
+			"rules": [
+				{
+					"path": "/a",
+					"ai": "block"
+				},
+				{
+					"path": "/a/",
+					"ai": "allow"
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "rules[1].path",
+				"message": "matches the same paths as rules[0]"
+			}
+		]
+	},
+	{
+		"name": "every error at once, unknown fields first",
+		"config": {
+			"license": 1,
+			"eventLog": 1,
+			"ai": "x",
+			"rules": [
+				{
+					"path": "x",
+					"ai": "y",
+					"note": 1
+				}
+			]
+		},
+		"errors": [
+			{
+				"field": "license",
+				"message": "is not a known field"
+			},
+			{
+				"field": "eventLog",
+				"message": "is not a known field"
+			},
+			{
+				"field": "ai",
+				"message": "must be \"allow\", \"block\" or \"charge\""
+			},
+			{
+				"field": "rules[0].note",
+				"message": "is not a known field"
+			},
+			{
+				"field": "rules[0].path",
+				"message": "must be a path starting with \"/\", with \"*\" only as a final \"/*\", such as \"/premium/*\""
+			},
+			{
+				"field": "rules[0].ai",
+				"message": "must be \"allow\", \"block\" or \"charge\""
+			}
+		]
+	}
+]

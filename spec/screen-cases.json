@@ -1,0 +1,517 @@
+[
+	{
+		"config": {
+			"ai": "block"
+		},
+		"requests": [
+			{
+				"name": "a reader is allowed when AI is blocked",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			},
+			{
+				"name": "a request with no user-agent is a human",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": null,
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			},
+			{
+				"name": "Googlebot is not an AI crawler",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			},
+			{
+				"name": "an AI crawler is blocked when AI is blocked",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "an AI crawler posting is blocked too",
+				"method": "POST",
+				"path": "/comments",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "matching ignores case",
+				"method": "GET",
+				"path": "/",
+				"userAgent": "claudebot/1.0",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims ClaudeBot",
+				"action": "block"
+			},
+			{
+				"name": "matching needs the whole token",
+				"method": "GET",
+				"path": "/",
+				"userAgent": "NotGPTBotty/1.0",
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			},
+			{
+				"name": "a token after a hyphen is a whole token",
+				"method": "GET",
+				"path": "/",
+				"userAgent": "x-CCBot/2.0",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims CCBot",
+				"action": "block"
+			},
+			{
+				"name": "the agent's name is reported as listed",
+				"method": "GET",
+				"path": "/",
+				"userAgent": "META-EXTERNALAGENT/1.1",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims meta-externalagent",
+				"action": "block"
+			},
+			{
+				"name": "robots.txt is always served",
+				"method": "GET",
+				"path": "/robots.txt",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "a preflight is blocked when AI is blocked",
+				"method": "OPTIONS",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": true,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			}
+		]
+	},
+	{
+		"config": {},
+		"requests": [
+			{
+				"name": "an AI crawler is observed by default",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			}
+		]
+	},
+	{
+		"config": {
+			"ai": "charge",
+			"price": "0.002",
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia"
+		},
+		"requests": [
+			{
+				"name": "an AI crawler is charged when AI charges",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a preflight is allowed when AI charges",
+				"method": "OPTIONS",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": true,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "an OPTIONS without Access-Control-Request-Method is charged",
+				"method": "OPTIONS",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a reader is allowed when AI charges",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			},
+			{
+				"name": "a .. segment is charged, not blocked, when there are no rules",
+				"method": "GET",
+				"path": "/x/../a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			}
+		]
+	},
+	{
+		"config": {
+			"payTo": "0x00000000000000000000000000000000000000AA",
+			"network": "base-sepolia",
+			"rules": [
+				{
+					"path": "/premium/*",
+					"ai": "charge",
+					"price": "0.01"
+				},
+				{
+					"path": "/premium/free/*",
+					"ai": "allow"
+				},
+				{
+					"path": "/premium/free/locked",
+					"ai": "block"
+				},
+				{
+					"path": "/private/*",
+					"ai": "block"
+				},
+				{
+					"path": "/about",
+					"ai": "block"
+				},
+				{
+					"path": "/café/*",
+					"ai": "block"
+				}
+			]
+		},
+		"requests": [
+			{
+				"name": "a wildcard rule charges its paths",
+				"method": "GET",
+				"path": "/premium/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a wildcard rule covers its own prefix",
+				"method": "GET",
+				"path": "/premium",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a wildcard rule doesn't cover a path that only starts with the same letters",
+				"method": "GET",
+				"path": "/premiumx",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "a path no rule matches follows the top-level ai",
+				"method": "GET",
+				"path": "/articles/1",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "the longer wildcard wins",
+				"method": "GET",
+				"path": "/premium/free/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "an exact rule wins over wildcards",
+				"method": "GET",
+				"path": "/premium/free/locked",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "an exact rule covers its trailing-slash form",
+				"method": "GET",
+				"path": "/about/",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "an exact rule doesn't cover the paths under it",
+				"method": "GET",
+				"path": "/about/team",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "a rule matches its path in upper case",
+				"method": "GET",
+				"path": "/PREMIUM/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches its path percent-encoded",
+				"method": "GET",
+				"path": "/%70remium/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches its path with doubled slashes",
+				"method": "GET",
+				"path": "//premium//a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches its path with an encoded slash",
+				"method": "GET",
+				"path": "/premium%2Fa",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches its path with backslashes",
+				"method": "GET",
+				"path": "\\premium\\a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches its path with . segments",
+				"method": "GET",
+				"path": "/./premium/./a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "a rule matches a non-ASCII path, percent-encoded and in upper case",
+				"method": "GET",
+				"path": "/CAF%C3%89/menu",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "a path is percent-decoded only once",
+				"method": "GET",
+				"path": "/%2570remium/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "an invalid percent-encoding is left as it is",
+				"method": "GET",
+				"path": "/premium/%zz",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "charge"
+			},
+			{
+				"name": "an invalid UTF-8 percent-encoding is left as it is",
+				"method": "GET",
+				"path": "/%70remium%ff/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "a .. segment is blocked when rules block or charge",
+				"method": "GET",
+				"path": "/free/../premium/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "an encoded .. segment is blocked when rules block or charge",
+				"method": "GET",
+				"path": "/premium/a/%2e%2e%2fx",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "a .. after a backslash is blocked when rules block or charge",
+				"method": "GET",
+				"path": "/premium/a\\..\\x",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "a .. inside a segment name is not a .. segment",
+				"method": "GET",
+				"path": "/articles/a..b",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			},
+			{
+				"name": "a reader's .. segment is allowed",
+				"method": "GET",
+				"path": "/free/../premium/a",
+				"userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+				"preflight": false,
+				"class": "human",
+				"reason": "no bot signals",
+				"action": "allow"
+			}
+		]
+	},
+	{
+		"config": {
+			"rules": [
+				{
+					"path": "/a/*",
+					"ai": "allow"
+				}
+			]
+		},
+		"requests": [
+			{
+				"name": "a .. segment is allowed when every rule allows",
+				"method": "GET",
+				"path": "/x/../a/b",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			}
+		]
+	},
+	{
+		"config": {
+			"rules": [
+				{
+					"path": "/*",
+					"ai": "block"
+				},
+				{
+					"path": "/open/*",
+					"ai": "allow"
+				}
+			]
+		},
+		"requests": [
+			{
+				"name": "/* covers the root",
+				"method": "GET",
+				"path": "/",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "block"
+			},
+			{
+				"name": "/* loses to any other rule",
+				"method": "GET",
+				"path": "/open/a",
+				"userAgent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+				"preflight": false,
+				"class": "unverifiedBot",
+				"reason": "user-agent claims GPTBot",
+				"action": "allow"
+			}
+		]
+	}
+]
