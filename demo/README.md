@@ -89,6 +89,19 @@ curl -i -H 'Demo-Visitor: GPTBot' http://localhost:3000/blocked/articles/42
 
 `PORT` sets the port, as with `demo:serve`. Set it rather than passing `-p` to Next, because `/charged` finds its stand-in facilitator on that port. It runs a production build with `next start`, so the proxy behaves as it would when deployed. Each request prints a line, then the event Fairtoll logged, then either the status Fairtoll answered with or that the request was passed on to the page.
 
+## WordPress
+
+`demo/wordpress/` runs a local WordPress with the plugin in `wordpress/` installed, so the same kind of curl requests show the WordPress plugin. It needs PHP and Composer, and no Docker: it runs on PHP's built-in server, with SQLite as the database.
+
+```sh
+npm run demo:wordpress
+curl -i -A 'GPTBot/1.2' http://localhost:8080/sample-page/
+```
+
+The first run downloads WordPress into `demo/wordpress/site` and installs it. The site has the sample page and post every new WordPress has, with Fairtoll active, logging on, and the config in `demo/wordpress/config.json`, which blocks AI bots on `/sample-page` and charges them on `/hello-world`, which the plugin observes. Change the config at **Settings > Fairtoll** in wp-admin, whose user and password are both `demo`, or delete `demo/wordpress/site` to start again. The server prints each request, and each line the plugin logs. `PORT` sets the port.
+
+`sh demo/scenarios/wordpress.sh` starts the site and sends a reader and AI crawlers to a page a rule blocks, the post a rule charges, and the home page, which no rule matches. It prints each response's status, the headers Fairtoll sets, and the body when Fairtoll answered, or the page's title when WordPress did.
+
 ## Checking a change
 
 Write the scenario and describe the transcript you expect before the work starts. Then read the transcript the change produces, or run the scenario on its branch yourself. A change to `demo/serve.js`, a settings file, or a scenario changes what the transcript can show, so review it as closely as the change itself.
