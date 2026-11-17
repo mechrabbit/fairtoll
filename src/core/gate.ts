@@ -148,6 +148,7 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 
 	let loadedBody: string | undefined;
 	let fetching: Promise<void> | undefined;
+	let fetchStartedAt = 0;
 	let nextFetchAt = 0;
 	let firstFetchEnded = false;
 	let firstWaitEndsAt: number | undefined;
@@ -167,16 +168,23 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		loadedBody = body;
 	}
 
-	/** The fetch in progress, starting one if the config is due. It never rejects. */
+	/**
+	 * The fetch in progress, starting one if the config is due. It never rejects. A fetch that has run for twice its
+	 * timeout is treated as abandoned, because a runtime that stops a request's work, such as a Worker after the
+	 * response, can leave its promise unsettled forever, and that would stop every later refresh.
+	 */
 	function refresh(): Promise<void> {
-		if (fetching === undefined && Date.now() >= nextFetchAt) {
-			fetching = load()
+		const abandoned = fetching !== undefined && Date.now() - fetchStartedAt > 2 * fetchTimeoutMs;
+		if ((fetching === undefined || abandoned) && Date.now() >= nextFetchAt) {
+			fetchStartedAt = Date.now();
+			const current: Promise<void> = load()
 				.catch((error: unknown) => console.error(`fairtoll: could not load the config from ${url}, so the last one is kept:`, error))
 				.finally(() => {
-					fetching = undefined;
+					if (fetching === current) fetching = undefined;
 					firstFetchEnded = true;
 					nextFetchAt = Date.now() + refreshAfterMs;
 				});
+			fetching = current;
 		}
 		return fetching ?? Promise.resolve();
 	}
@@ -202,8 +210,14 @@ function siteOptions(site: unknown): { key: string; url: string } {
 	if (typeof site !== "object" || site === null) throw new Error("Invalid fairtoll options: site must be an object with a key");
 	const { key, url: given } = site as Record<string, unknown>;
 	const url = given ?? defaultSiteUrl;
-	if (typeof key !== "string" || key === "") throw new Error("Invalid fairtoll options: site.key must be a non-empty string");
-	if (!isHttpUrl(url)) throw new Error("Invalid fairtoll options: site.url must be an http or https url");
+	// Printable ASCII only, so a key with a stray newline, such as from a secrets file, fails here and not on every fetch.
+	if (typeof key !== "string" || !/^[\x21-\x7e]+$/.test(key)) {
+		throw new Error("Invalid fairtoll options: site.key must be a non-empty string of printable characters with no spaces");
+	}
+	// The key travels with every fetch, so plain http is only for a service on this machine, such as the demo's.
+	if (!isHttpUrl(url) || (new URL(url).protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname))) {
+		throw new Error("Invalid fairtoll options: site.url must be an https url, or http on localhost");
+	}
 	return { key, url };
 }
 

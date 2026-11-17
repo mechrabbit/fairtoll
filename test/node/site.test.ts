@@ -130,7 +130,26 @@ test("a request a second after the first fetch started doesn't wait for it", asy
 
 test("an invalid site option or local config throws at startup", () => {
 	expect(() => createGate(wallet, { site: { key: "" } })).toThrow("site.key must be a non-empty string");
-	expect(() => createGate(wallet, { site: { key: "k", url: "localhost:8080" } })).toThrow("site.url must be an http or https url");
+	expect(() => createGate(wallet, { site: { key: "k\n" } })).toThrow("site.key must be a non-empty string");
+	expect(() => createGate(wallet, { site: { key: "k", url: "localhost:8080" } })).toThrow("site.url must be an https url");
+	expect(() => createGate(wallet, { site: { key: "k", url: "http://service.test/v1/config" } })).toThrow("site.url must be an https url");
+	expect(() => createGate(wallet, { site: { key: "k", url: "http://localhost:3000/v1/config" } })).not.toThrow();
 	expect(() => createGate({ ai: "sometimes" }, { site })).toThrow("Invalid fairtoll config");
 	expect(fetchMock).not.toHaveBeenCalled();
+});
+
+test("a fetch that never ends is abandoned after twice its timeout, so refreshes go on", async () => {
+	answer = serves({ ai: "block" });
+	const gate = createGate(wallet, { site });
+	expect(await statusOf(gate)).toBe(403);
+
+	await vi.advanceTimersByTimeAsync(60_000);
+	fetchMock.mockImplementationOnce(() => new Promise(() => {}));
+	gate.check(bot(), "GET", "/");
+	await vi.advanceTimersByTimeAsync(10_001);
+	answer = serves({});
+	gate.check(bot(), "GET", "/");
+	await vi.advanceTimersByTimeAsync(0);
+	expect(fetchMock).toHaveBeenCalledTimes(3);
+	expect((await gate.check(bot(), "GET", "/").outcome).kind).toBe("pass");
 });
