@@ -137,6 +137,7 @@ describe("siteConfigErrors", () => {
 			{ field: "payTo", message: "can only be set in the publisher's own code" },
 			{ field: "network", message: "can only be set in the publisher's own code" },
 		]);
+		expect(siteConfigErrors({ payTo: "x", prise: "0.01" }).map((e) => e.field)).toEqual(["payTo", "prise"]);
 	});
 
 	test("requires may only name fields this version knows", () => {

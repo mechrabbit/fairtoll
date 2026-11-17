@@ -253,22 +253,24 @@ export function withoutUnknownFields(input: Record<string, unknown>): { readonly
  * The mistakes in a config meant for the publisher's site on fairtoll.net, for the service to check before it saves
  * one: everything `parseConfig` refuses, a `payTo` or `network`, which a fetched config can't set, a `requires`
  * naming a field this version doesn't know, and any field an install would ignore, so a typo such as "prise" is
- * caught here rather than ignored. An empty list means every install of this version applies the config as written.
+ * caught here rather than ignored. An empty list means every install of this version applies the config as written,
+ * as long as its own code sets the wallet and network that any charge needs.
  */
 export function siteConfigErrors(input: unknown): ConfigError[] {
 	if (!isPlainObject(input)) return [{ field: "config", message: "must be a plain object" }];
-	const wallet = ["payTo", "network"].filter((name) => Object.hasOwn(input, name));
-	if (wallet.length > 0) return wallet.map((field) => ({ field, message: "can only be set in the publisher's own code" }));
+	const wallet = ["payTo", "network"]
+		.filter((name) => Object.hasOwn(input, name))
+		.map((field) => ({ field, message: "can only be set in the publisher's own code" }));
 	let known: ReturnType<typeof withoutUnknownFields>;
 	try {
 		known = withoutUnknownFields(input);
 	} catch {
-		return [{ field: "requires", message: "must be a list of fields this version knows, such as \"rules.price\"" }];
+		return [...wallet, { field: "requires", message: "must be a list of fields this version knows, such as \"rules.price\"" }];
 	}
 	const ignored = known.ignored.map((field) => ({ field, message: "is not a known field" }));
-	// A placeholder wallet, so a charge is checked as it will be with the publisher's own wallet and network.
+	// A placeholder wallet in place of the publisher's own, so a charge is checked as it will be with theirs.
 	const result = parseConfig({ ...known.config, payTo: `0x${"1".repeat(40)}`, network: "base-sepolia" });
-	return [...ignored, ...(result.ok ? [] : result.errors)];
+	return [...wallet, ...ignored, ...(result.ok ? [] : result.errors)];
 }
 
 /**
