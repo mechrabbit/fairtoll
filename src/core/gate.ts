@@ -156,7 +156,7 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 	let loadedBody: string | undefined;
 	let fetching: Promise<void> | undefined;
 	let fetchStartedAt = 0;
-	// Counts fetches, so one that was abandoned and ends late can't put back an older config.
+	// Counts fetches, so one that was abandoned and ends late can be told apart from the current one.
 	let fetchCount = 0;
 	let nextFetchAt = 0;
 	let firstFetchEnded = false;
@@ -166,6 +166,8 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}`, "Fairtoll-Version": packageVersion }, signal: AbortSignal.timeout(fetchTimeoutMs) });
 		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
 		const body = await response.text();
+		// A fetch that was abandoned and ends late must not put back an older config.
+		if (fetchNumber !== fetchCount) return;
 		// The same config again keeps the gate, and its chargers' started facilitators.
 		if (body === loadedBody) return;
 		const fetched: unknown = JSON.parse(body);
@@ -173,10 +175,8 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		if (Object.hasOwn(fetched, "payTo") || Object.hasOwn(fetched, "network")) {
 			throw new Error("the fetched config sets payTo or network, which only the config in your code can set");
 		}
-		// Fields this version doesn't know are left out, so the service can add one without older versions refusing
-		// the config. The fields it does know are checked as strictly as a config in code.
+		// The fields this version knows are checked as strictly as a config in code.
 		const { config, ignored } = withoutUnknownFields(fetched);
-		if (fetchNumber !== fetchCount) return;
 		gate = build({ ...config, ...wallet });
 		loadedBody = body;
 		if (ignored.length > 0) console.warn(`fairtoll: the config from ${url} has fields this version doesn't know, which were ignored: ${ignored.join(", ")}`);
@@ -194,7 +194,9 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 			const current: Promise<void> = load(++fetchCount)
 				.catch((error: unknown) => console.error(`fairtoll: could not load the config from ${url}, so the last one is kept:`, error))
 				.finally(() => {
-					if (fetching === current) fetching = undefined;
+					// An abandoned fetch that ends late leaves the schedule to the fetch that replaced it.
+					if (fetching !== current) return;
+					fetching = undefined;
 					firstFetchEnded = true;
 					nextFetchAt = Date.now() + refreshAfterMs;
 				});

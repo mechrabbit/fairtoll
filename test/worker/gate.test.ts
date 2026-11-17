@@ -9,7 +9,8 @@ test("the gate runs in workerd", async () => {
 });
 
 test("a gate with a site fetches its config in workerd", async () => {
-	vi.stubGlobal("fetch", async () => Response.json({ ai: "block" }));
+	const fetchMock = vi.fn(async () => Response.json({ ai: "block" }));
+	vi.stubGlobal("fetch", fetchMock);
 	try {
 		const gate = createGate({}, { site: { key: "site-key", url: "https://service.test/v1/config" } });
 		// Two requests at once share the one fetch.
@@ -19,6 +20,7 @@ test("a gate with a site fetches its config in workerd", async () => {
 			expect(await outcome).toMatchObject({ kind: "respond", status: 403 });
 			await logged;
 		}
+		expect(fetchMock).toHaveBeenCalledTimes(1);
 	} finally {
 		vi.unstubAllGlobals();
 	}

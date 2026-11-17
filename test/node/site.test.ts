@@ -164,7 +164,7 @@ test("a fetch that never ends is abandoned after twice its timeout, so refreshes
 
 test("fields this version doesn't know are ignored with a warning, and the rest applies", async () => {
 	vi.spyOn(console, "warn").mockImplementation(() => {});
-	answer = serves({ ai: "block", schedule: "weekdays", rules: [{ path: "/free/*", ai: "allow", note: "launch promo" }] });
+	answer = serves({ ai: "block", requires: null, schedule: "weekdays", rules: [{ path: "/free/*", ai: "allow", note: "launch promo" }] });
 	const gate = createGate(wallet, { site });
 	expect(await statusOf(gate)).toBe(403);
 	expect((await gate.check(bot(), "GET", "/free/1").outcome).kind).toBe("pass");

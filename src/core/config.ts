@@ -226,7 +226,9 @@ function parseRules(value: unknown): Parsed<RuleInput[]> {
  * any is one this version doesn't know, so the caller keeps its last config rather than apply only part of this one.
  */
 export function withoutUnknownFields(input: Record<string, unknown>): { readonly config: Record<string, unknown>; readonly ignored: readonly string[] } {
-	const { requires = [], ...rest } = input;
+	// A null requires is no requires, as with every other field (see `presentValue`).
+	const { requires: given, ...rest } = input;
+	const requires = given ?? [];
 	if (!Array.isArray(requires) || !requires.every((name) => typeof name === "string")) {
 		throw new Error("the fetched config's requires must be a list of field names");
 	}
@@ -236,14 +238,10 @@ export function withoutUnknownFields(input: Record<string, unknown>): { readonly
 		throw new Error(`the fetched config needs ${unsupported.join(", ")}, which this version of Fairtoll doesn't support, so update Fairtoll`);
 	}
 	const ignored: string[] = [];
-	const keep = (object: Record<string, unknown>, fields: readonly string[], prefix: string) =>
-		Object.fromEntries(
-			Object.entries(object).filter(([name]) => {
-				if (fields.includes(name)) return true;
-				ignored.push(`${prefix}${name}`);
-				return false;
-			}),
-		);
+	const keep = (object: Record<string, unknown>, fields: readonly string[], prefix: string) => {
+		ignored.push(...unknownFieldErrors(object, fields, prefix).map((error) => error.field));
+		return Object.fromEntries(Object.entries(object).filter(([name]) => fields.includes(name)));
+	};
 	const config = keep(rest, knownFields, "");
 	if (Array.isArray(config.rules)) {
 		config.rules = config.rules.map((rule: unknown, index) => (isPlainObject(rule) ? keep(rule, ruleFields, `rules[${index}].`) : rule));
