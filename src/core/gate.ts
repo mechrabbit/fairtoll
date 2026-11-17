@@ -1,5 +1,5 @@
 import { createCharger, type Charger, type FacilitatorConfig } from "./charge.js";
-import { isPlainObject, parseConfig, type Charge } from "./config.js";
+import { isPlainObject, parseConfig, withoutUnknownFields, type Charge } from "./config.js";
 import { allowsEverything, screen, type Action, type EventSink } from "./screen.js";
 
 export interface Options {
@@ -136,6 +136,7 @@ const fetchTimeoutMs = 5_000;
  *   the requests in that window, and none by more than `firstFetchWaitMs`.
  * - After that no request waits. One that finds the config older than `refreshAfterMs` starts a fetch in the
  *   background, and it and every request until the fetch ends use the config already loaded.
+ * - A fetched field this version doesn't know is ignored with a warning, so fairtoll.net can add fields.
  * - A fetch that fails, or brings a config `build` refuses, prints the error and keeps the last config.
  * `build` makes the gate for one config, and throws on an invalid one.
  */
@@ -149,11 +150,13 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 	let loadedBody: string | undefined;
 	let fetching: Promise<void> | undefined;
 	let fetchStartedAt = 0;
+	// Counts fetches, so one that was abandoned and ends late can't put back an older config.
+	let fetchCount = 0;
 	let nextFetchAt = 0;
 	let firstFetchEnded = false;
 	let firstWaitEndsAt: number | undefined;
 
-	async function load(): Promise<void> {
+	async function load(fetchNumber: number): Promise<void> {
 		const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(fetchTimeoutMs) });
 		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
 		const body = await response.text();
@@ -164,8 +167,13 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		if (Object.hasOwn(fetched, "payTo") || Object.hasOwn(fetched, "network")) {
 			throw new Error("the fetched config sets payTo or network, which only the config in your code can set");
 		}
-		gate = build({ ...fetched, ...wallet });
+		// Fields this version doesn't know are left out, so the service can add one without older versions refusing
+		// the config. The fields it does know are checked as strictly as a config in code.
+		const { config, ignored } = withoutUnknownFields(fetched);
+		if (fetchNumber !== fetchCount) return;
+		gate = build({ ...config, ...wallet });
 		loadedBody = body;
+		if (ignored.length > 0) console.warn(`fairtoll: the config from ${url} has fields this version doesn't know, which were ignored: ${ignored.join(", ")}`);
 	}
 
 	/**
@@ -177,7 +185,7 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 		const abandoned = fetching !== undefined && Date.now() - fetchStartedAt > 2 * fetchTimeoutMs;
 		if ((fetching === undefined || abandoned) && Date.now() >= nextFetchAt) {
 			fetchStartedAt = Date.now();
-			const current: Promise<void> = load()
+			const current: Promise<void> = load(++fetchCount)
 				.catch((error: unknown) => console.error(`fairtoll: could not load the config from ${url}, so the last one is kept:`, error))
 				.finally(() => {
 					if (fetching === current) fetching = undefined;

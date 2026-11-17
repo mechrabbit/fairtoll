@@ -144,7 +144,9 @@ test("a fetch that never ends is abandoned after twice its timeout, so refreshes
 	expect(await statusOf(gate)).toBe(403);
 
 	await vi.advanceTimersByTimeAsync(60_000);
-	fetchMock.mockImplementationOnce(() => new Promise(() => {}));
+	// The abandoned fetch ends after the next one, and its older config must not come back.
+	let endAbandoned: (response: Response) => void = () => {};
+	fetchMock.mockImplementationOnce(() => new Promise((resolve) => (endAbandoned = resolve)));
 	gate.check(bot(), "GET", "/");
 	await vi.advanceTimersByTimeAsync(10_001);
 	answer = serves({});
@@ -152,4 +154,17 @@ test("a fetch that never ends is abandoned after twice its timeout, so refreshes
 	await vi.advanceTimersByTimeAsync(0);
 	expect(fetchMock).toHaveBeenCalledTimes(3);
 	expect((await gate.check(bot(), "GET", "/").outcome).kind).toBe("pass");
+	endAbandoned(Response.json({ ai: "block" }));
+	await vi.advanceTimersByTimeAsync(0);
+	expect((await gate.check(bot(), "GET", "/").outcome).kind).toBe("pass");
+});
+
+test("fields this version doesn't know are ignored with a warning, and the rest applies", async () => {
+	vi.spyOn(console, "warn").mockImplementation(() => {});
+	answer = serves({ ai: "block", schedule: "weekdays", rules: [{ path: "/free/*", ai: "allow", note: "launch promo" }] });
+	const gate = createGate(wallet, { site });
+	expect(await statusOf(gate)).toBe(403);
+	expect((await gate.check(bot(), "GET", "/free/1").outcome).kind).toBe("pass");
+	expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("which were ignored: schedule, rules[0].note"));
+	expect(console.error).not.toHaveBeenCalled();
 });

@@ -216,6 +216,29 @@ function parseRules(value: unknown): Parsed<RuleInput[]> {
 }
 
 /**
+ * A copy of a config with only the fields this version knows, at the top level and in each rule, and the names of
+ * the fields left out, such as "rules[0].note". It is for a config from fairtoll.net, so a field a newer version
+ * adds there doesn't make older versions refuse the whole config. The known fields are left for `parseConfig` to
+ * check, and a `rules` or rule that isn't an array or a plain object is left as it is for `parseConfig` to refuse.
+ */
+export function withoutUnknownFields(input: Record<string, unknown>): { readonly config: Record<string, unknown>; readonly ignored: readonly string[] } {
+	const ignored: string[] = [];
+	const known = (object: Record<string, unknown>, fields: readonly string[], prefix: string) =>
+		Object.fromEntries(
+			Object.entries(object).filter(([name]) => {
+				if (fields.includes(name)) return true;
+				ignored.push(`${prefix}${name}`);
+				return false;
+			}),
+		);
+	const config = known(input, knownFields, "");
+	if (Array.isArray(config.rules)) {
+		config.rules = config.rules.map((rule: unknown, index) => (isPlainObject(rule) ? known(rule, ruleFields, `rules[${index}].`) : rule));
+	}
+	return { config, ignored };
+}
+
+/**
  * Reads an optional field and checks it with `valid`. A missing field (see `presentValue`) is undefined. An
  * invalid one is an error naming `errorField`, such as "rules[0].price".
  */
