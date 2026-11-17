@@ -80,7 +80,7 @@ let serviceConfig = { ai: "charge", price: "0.002" };
 app.get("/service/v1/config", (req, res) => {
 	if (req.get("authorization") !== `Bearer ${site.key}`) return res.status(401).send("Unknown site key\n");
 	if (serviceConfig === undefined) return res.status(503).send("The service is down\n");
-	console.log(`   service sends ${JSON.stringify(serviceConfig)}`);
+	console.log(`   service sends ${JSON.stringify(serviceConfig)} to Fairtoll ${req.get("fairtoll-version")}`);
 	res.json(serviceConfig);
 });
 app.put("/service/v1/config", express.json(), (req, res) => {
