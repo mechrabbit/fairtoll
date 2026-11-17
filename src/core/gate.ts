@@ -123,8 +123,8 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 
 const defaultSiteUrl = "https://fairtoll.net/v1/config";
 /**
- * This package's version, sent with each config fetch, so fairtoll.net never sends a field this version can't
- * honour, and can tell when no site uses an old URL any more. A test keeps it the same as package.json's.
+ * This package's version, sent with each config fetch, so the dashboard can say when a feature needs an update and
+ * can tell when no site uses an old URL any more. A test keeps it the same as package.json's.
  */
 export const packageVersion = "0.1.0";
 /** How long a loaded config is used before a request fetches it again. A failed fetch waits as long. */
@@ -141,7 +141,8 @@ const fetchTimeoutMs = 5_000;
  *   the requests in that window, and none by more than `firstFetchWaitMs`.
  * - After that no request waits. One that finds the config older than `refreshAfterMs` starts a fetch in the
  *   background, and it and every request until the fetch ends use the config already loaded.
- * - A fetched field this version doesn't know is ignored with a warning, so fairtoll.net can add fields.
+ * - A fetched field this version doesn't know is ignored with a warning, so fairtoll.net can add fields, unless the
+ *   config lists it in `requires` (see `withoutUnknownFields`).
  * - A fetch that fails, or brings a config `build` refuses, prints the error and keeps the last config.
  * `build` makes the gate for one config, and throws on an invalid one.
  */

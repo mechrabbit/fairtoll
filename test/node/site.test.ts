@@ -175,3 +175,23 @@ test("fields this version doesn't know are ignored with a warning, and the rest 
 test("the version sent to fairtoll.net is the package's", () => {
 	expect(packageVersion).toBe(JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version);
 });
+
+test("a config that requires a field this version doesn't know keeps the last config", async () => {
+	answer = serves({ ai: "block" });
+	const gate = createGate(wallet, { site });
+	expect(await statusOf(gate)).toBe(403);
+
+	vi.advanceTimersByTime(60_000);
+	answer = serves({ ai: "allow", requires: ["rules.schedule"], rules: [{ path: "/a", ai: "charge", schedule: "weekdays" }] });
+	await statusOf(gate);
+	expect(await statusOf(gate)).toBe(403);
+	expect(console.error).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ message: expect.stringContaining("needs rules.schedule") }));
+
+	// A config that requires only fields this version knows applies, without a warning about requires itself.
+	vi.spyOn(console, "warn").mockImplementation(() => {});
+	vi.advanceTimersByTime(60_000);
+	answer = serves({ ai: "allow", requires: ["ai", "rules.price"] });
+	await statusOf(gate);
+	expect(await statusOf(gate)).toBe("pass");
+	expect(console.warn).not.toHaveBeenCalled();
+});

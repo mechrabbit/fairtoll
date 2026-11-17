@@ -216,9 +216,9 @@ app.use(
 - The first request after your app starts waits up to a second for the config. After that no request waits: Fairtoll fetches the config again in the background once it is a minute old, so a change in the dashboard reaches your site within about a minute.
 - Until a fetch succeeds, the config in your code applies, so you can write your whole config there as a fallback.
 - If fairtoll.net can't be reached, or sends a config with a mistake in it, Fairtoll prints the error and keeps the last config it had. Your pages keep loading either way.
-- A field your version of Fairtoll doesn't know is ignored with a warning, and the rest of the config applies.
+- A field your version of Fairtoll doesn't know is ignored with a warning, and the rest of the config applies. A field that isn't safe to ignore, because it limits what a rule does, is marked as required in the config from fairtoll.net. If your version doesn't know it, Fairtoll keeps your last config and prints that you need to update.
 - A missing or empty key, such as an unset `FAIRTOLL_SITE_KEY`, is a mistake in the options, so it stops your app at startup on Express, and turns Fairtoll off on Next.js, as any other mistake does.
-- Each fetch sends your Fairtoll version, so fairtoll.net only sends what your version can honour, and the dashboard can tell you when a feature needs an update.
+- Each fetch sends your Fairtoll version, so the dashboard can tell you when a feature needs an update.
 - Without `site`, Fairtoll never contacts fairtoll.net. Events passed to `log` are never sent there.
 
 ## Behind a CDN or cache
