@@ -69,9 +69,11 @@
 		"test": "vitest run",
 		"demo:serve": "npm run build --silent && node demo/serve.js",
 		"demo:next": "npm run build --silent && next build demo/next && next start demo/next",
-		"bench": "npm run build --silent && node bench/latency.js"
+		"bench": "npm run build --silent && node bench/latency.js",
+		"release:version": "changeset version && npm install --package-lock-only"
 	},
 	"devDependencies": {
+		"@changesets/cli": "3.0.3",
 		"@cloudflare/vitest-plugin": "1.8.5",
 		"@types/express": "5.0.6",
 		"@types/node": "24.19.2",
