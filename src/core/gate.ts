@@ -126,7 +126,7 @@ const defaultSiteUrl = "https://fairtoll.net/v1/config";
  * This package's version, sent with each config fetch, so the dashboard can say when a feature needs an update and
  * can tell when no site uses an old URL any more. A test keeps it the same as package.json's.
  */
-export const packageVersion = "0.1.0";
+export const packageVersion = "0.2.0";
 /** How long a loaded config is used before a request fetches it again. A failed fetch waits as long. */
 const refreshAfterMs = 60_000;
 /** How long requests wait for the first fetch, so a fresh process doesn't serve free pages while it runs. */

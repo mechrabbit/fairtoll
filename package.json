@@ -1,6 +1,6 @@
 {
 	"name": "fairtoll",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "See, block and charge for AI bot and agent traffic on your own site, with x402 payments.",
 	"license": "Apache-2.0",
 	"repository": {

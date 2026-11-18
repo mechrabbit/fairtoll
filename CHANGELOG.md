@@ -2,7 +2,11 @@
 
 Each release's changes, newest first. Fairtoll follows [semantic versioning](https://semver.org/). Before 1.0, a minor version can break the config or the API.
 
-## 0.1.0 (unreleased)
+## 0.2.0 (unreleased)
+
+- The `site` option loads the config from the publisher's site on fairtoll.net and refreshes it every minute, so prices and rules change without a redeploy. The wallet and network stay in the publisher's code. `siteConfigErrors` lists the mistakes in a config before it is saved there.
+
+## 0.1.0
 
 The first release.
 
@@ -12,7 +16,6 @@ The first release.
 - Adapters for Express 5 (`fairtoll/express`) and Next.js 16 (`fairtoll/next`).
 - `answered(response)` from `fairtoll/next` tells a site's own proxy whether Fairtoll answered a request with a 403 or 402.
 - `fairtoll testnet`, a command that pays for one charged page through your config on Base Sepolia, so you see a payment settle before charging real money.
-- The `site` option loads the config from the publisher's site on fairtoll.net and refreshes it every minute, so prices and rules change without a redeploy. The wallet and network stay in the publisher's code. `siteConfigErrors` lists the mistakes in a config before it is saved there.
 - An optional event log of AI requests and what Fairtoll did with each.
 - The config is checked when Fairtoll starts, and the error lists every invalid field it finds.
 - Fails open: if Fairtoll can't screen a request, or can't reach the facilitator, the page is served.
