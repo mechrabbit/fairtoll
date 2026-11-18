@@ -1,7 +1,7 @@
 #!/bin/sh
 # A reader, AI crawlers on a page a rule blocks and a post a rule charges, by their paths and by the query strings
-# WordPress also routes by, and one on a page no rule matches, sent to the local WordPress with the config in demo/wordpress/config.json. Starts the site, sends each request with curl,
-# and stops the site. Run from the repo root:
+# WordPress also routes by, and one on a page no rule matches, sent to the local WordPress with the config in
+# demo/wordpress/config.json. Starts the site, sends each request with curl, and stops the site. Run from the repo root:
 #   sh demo/scenarios/wordpress.sh
 set -e
 export PORT="${PORT:-8080}"

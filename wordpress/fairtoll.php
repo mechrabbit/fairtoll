@@ -103,12 +103,24 @@ function screen_rest_route( \WP $wp ): void {
 	);
 }
 
-/** Screens a request for a post or page, including its feed or embed, on the path of its permalink. */
+/**
+ * Screens a request for a post or page, including its feed or embed and the page that lists the posts, on the path
+ * of its permalink.
+ */
 function screen_resolved_post(): void {
 	screen_again(
 		function (): ?string {
-			$permalink = is_singular() ? get_permalink( get_queried_object() ) : false;
-			return is_string( $permalink ) ? (string) wp_parse_url( $permalink, PHP_URL_PATH ) : null;
+			$post = get_queried_object();
+			if ( ! $post instanceof \WP_Post ) {
+				return null;
+			}
+			$permalink = get_permalink( $post );
+			$parts     = is_string( $permalink ) ? wp_parse_url( $permalink ) : false;
+			// A plain permalink, such as /?p=1, picks the post in its query string, so its path names no post.
+			if ( ! is_array( $parts ) || ! isset( $parts['path'] ) || isset( $parts['query'] ) ) {
+				return null;
+			}
+			return $parts['path'];
 		}
 	);
 }

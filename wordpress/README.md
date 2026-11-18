@@ -13,7 +13,7 @@ This version observes and blocks. It can't charge yet: a rule that charges is ac
   - for a post or page, by the path of its permalink, so `/?page_id=2`, `/?p=1` and a POST to either are covered by the rules for that page or post;
   - for the REST API, by the route's path, such as `/wp-json/wp/v2/pages/2`, also when it comes as `/?rest_route=/wp/v2/pages/2`.
 
-  Write a rule for a post or page as a wildcard, such as `/my-post/*`, so it covers the post's feed and embed too. The REST API and the site's feeds carry the content of many posts at once, so block `/wp-json/*` and `/feed/*` as well. Archives, such as categories and search results, are only matched by the path they're asked for. Rules match pretty permalinks, so on a site with the plain `?p=1` permalinks, only blocking everywhere, with the top-level `"ai": "block"`, covers posts.
+  Write a rule for a post or page as a wildcard, such as `/my-post/*`, so it covers the post's feed and embed too. The REST API and the site's feeds carry the content of many posts at once, so block `/wp-json/*` and `/feed/*` as well. Archives and the site's feeds, such as categories, search results and `/feed/`, are only matched by the path they're asked for, so `/feed/*` doesn't cover the same feed asked for as `/?feed=rss2`. Rules match pretty permalinks, so on a site with the plain `?p=1` permalinks, only blocking everywhere, with the top-level `"ai": "block"`, covers posts.
 - **Rules match the whole path.** If WordPress is installed in a subdirectory, such as `example.com/blog`, include it: `/blog/articles/*`.
 
 ## Install
