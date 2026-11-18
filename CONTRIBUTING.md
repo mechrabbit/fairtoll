@@ -102,7 +102,7 @@ Run `npm ci`, then `npm test`, `npm run lint` and `npm run typecheck`. To see a 
 
 ## Versions and releases
 
-A pull request that changes the published package, meaning anything under `src/` or `package.json`, adds a changeset: a short note in `.changeset/` that says whether the change is a patch, minor or major one, and what a publisher would notice. Run `npx changeset` and answer its two questions. CI fails a pull request that changes those files without one. If the change doesn't need a release, such as a new dev dependency, run `npx changeset --empty`.
+A pull request that changes the published package, meaning anything under `src/`, `package.json` or `tsconfig.build.json`, adds a changeset: a short note in `.changeset/` that says whether the change is a patch, minor or major one, and what a publisher would notice. Run `npx changeset` and answer its two questions. CI fails a pull request that changes those files without one. If the change doesn't need a release, such as a new dev dependency, run `npx changeset --empty`.
 
 Before 1.0, a change that breaks the config or the API is a minor one, not a major one.
 

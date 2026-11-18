@@ -1,3 +1,3 @@
 {
-	"changedFilePatterns": ["src/**", "package.json"]
+	"changedFilePatterns": ["src/**", "package.json", "tsconfig.build.json"]
 }
