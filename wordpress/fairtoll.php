@@ -89,8 +89,12 @@ function screen_request(): void {
 	}
 }
 
-/** Screens a REST request on its route's path, such as /wp-json/wp/v2/pages/2, also when it came as ?rest_route=. */
-function screen_rest_route( \WP $wp ): void {
+/**
+ * Screens a REST request on its route's path, such as /wp-json/wp/v2/pages/2, also when it came as ?rest_route=.
+ *
+ * @param \WP $wp Not type-hinted, so anything unexpected throws inside screen_again, which fails open.
+ */
+function screen_rest_route( $wp ): void {
 	screen_again(
 		function () use ( $wp ): ?string {
 			if ( empty( $wp->query_vars['rest_route'] ) ) {
@@ -180,6 +184,10 @@ function block(): void {
 	// cached and shown to readers.
 	if ( headers_sent() ) {
 		error_log( 'fairtoll: a blocked request was let through, because output had already started, so the 403 could not be sent' );
+		// So the event says what happened to the request.
+		$request                       = ai_request();
+		$request['screened']['action'] = 'allow';
+		ai_request( $request );
 		return;
 	}
 	// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
