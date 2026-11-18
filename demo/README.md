@@ -98,9 +98,9 @@ npm run demo:wordpress
 curl -i -A 'GPTBot/1.2' http://localhost:8080/sample-page/
 ```
 
-The first run downloads WordPress into `demo/wordpress/site` and installs it. The site has the sample page and post every new WordPress has, with Fairtoll active, logging on, and the config in `demo/wordpress/config.json`, which blocks AI bots on `/sample-page` and charges them on `/hello-world`, which the plugin observes. Change the config at **Settings > Fairtoll** in wp-admin, whose user and password are both `demo`, or delete `demo/wordpress/site` to start again. The server prints each request, and each line the plugin logs. `PORT` sets the port. The site is installed at the first run's port, so to change it, delete `demo/wordpress/site` too.
+The first run downloads WordPress into `demo/wordpress/site` and installs it. The site has the sample page and post every new WordPress has, with Fairtoll active, logging on, and the config in `demo/wordpress/config.json`, which blocks AI bots on `/sample-page/*` and the REST API, `/wp-json/*`, and charges them on `/hello-world/*`, which the plugin observes. Change the config at **Settings > Fairtoll** in wp-admin, whose user and password are both `demo`, or delete `demo/wordpress/site` to start again. The server prints each request, and each line the plugin logs. `PORT` sets the port. The site is installed at the first run's port, so to change it, delete `demo/wordpress/site` too.
 
-`sh demo/scenarios/wordpress.sh` starts the site and sends a reader and AI crawlers to a page a rule blocks, the post a rule charges, and the home page, which no rule matches. It prints each response's status, the headers Fairtoll sets, and the body when Fairtoll answered, or the page's title when WordPress did.
+`sh demo/scenarios/wordpress.sh` starts the site and sends a reader and AI crawlers to a page a rule blocks, the post a rule charges, and the home page, which no rule matches. It also asks for the page and the post through the query strings WordPress routes by, `/?page_id=2`, `/?rest_route=` and `/?p=1`. It prints each response's status, the headers Fairtoll sets, and the body when Fairtoll answered, or the page's title when WordPress did.
 
 ## Checking a change
 

@@ -8,7 +8,12 @@ This version observes and blocks. It can't charge yet: a rule that charges is ac
 
 - **Bots are recognised by their user-agent only.** A bot that pretends to be a browser is treated as a reader.
 - **A page cache can serve a blocked bot a cached page.** If a caching plugin or your host caches pages, the cache can answer a bot without asking WordPress, so the plugin never sees it. Keeping blocking working with a page cache is planned. Until then, exclude the paths you block from the cache, or block AI bots at your host or CDN too.
-- **Rules match the URL path, and WordPress serves your content at more than one URL.** A post's own feed and embed are under its path (`/my-post/feed/`, `/my-post/embed/`), so write a rule for a post or page as a wildcard, such as `/my-post/*`, which covers them, and a section as `/articles/*`. The REST API (`/wp-json/...`) and feeds (`/feed/`) carry post content too, so block `/wp-json/*` and `/feed/*` as well. Some URLs pick the content in the query string, which rules don't match: the REST API also answers at `/?rest_route=/...`, and a POST to `/?page_id=2` serves that page. Only blocking everywhere, with the top-level `"ai": "block"`, covers those.
+- **WordPress serves your content at more than one URL.** Fairtoll matches each AI request against your rules by up to three paths, and blocks it if any of them is blocked:
+  - by the path it asks for;
+  - for a post or page, by the path of its permalink, so `/?page_id=2`, `/?p=1` and a POST to either are covered by the rules for that page or post;
+  - for the REST API, by the route's path, such as `/wp-json/wp/v2/pages/2`, also when it comes as `/?rest_route=/wp/v2/pages/2`.
+
+  Write a rule for a post or page as a wildcard, such as `/my-post/*`, so it covers the post's feed and embed too. The REST API and the site's feeds carry the content of many posts at once, so block `/wp-json/*` and `/feed/*` as well. Archives, such as categories and search results, are only matched by the path they're asked for. Rules match pretty permalinks, so on a site with the plain `?p=1` permalinks, only blocking everywhere, with the top-level `"ai": "block"`, covers posts.
 - **Rules match the whole path.** If WordPress is installed in a subdirectory, such as `example.com/blog`, include it: `/blog/articles/*`.
 
 ## Install
@@ -34,7 +39,7 @@ Go to **Settings > Fairtoll** and paste or edit the config. It's JSON, with the 
 }
 ```
 
-A blocked bot gets a 403 with the text `This site does not allow AI bots or agents.` and `Cache-Control: no-store`, before your theme or any page code runs. Readers, and every other request, get your site as usual. `/robots.txt` is always served.
+A blocked bot gets a 403 with the text `This site does not allow AI bots or agents.` and `Cache-Control: no-store`, before your theme runs. Readers, and every other request, get your site as usual. `/robots.txt` is always served.
 
 If the config has a mistake, the settings page lists each one, and Fairtoll lets every request through until you fix it.
 

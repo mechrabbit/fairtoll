@@ -2,7 +2,8 @@
 	"payTo": "0x000000000000000000000000000000000000dEaD",
 	"network": "base-sepolia",
 	"rules": [
-		{ "path": "/sample-page", "ai": "block" },
-		{ "path": "/hello-world", "ai": "charge", "price": "0.01" }
+		{ "path": "/sample-page/*", "ai": "block" },
+		{ "path": "/hello-world/*", "ai": "charge", "price": "0.01" },
+		{ "path": "/wp-json/*", "ai": "block" }
 	]
 }
