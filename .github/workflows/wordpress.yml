@@ -29,7 +29,7 @@ jobs:
       - run: composer install --no-interaction --no-progress
       - run: vendor/bin/phpunit
       # The tests load src/config.php and src/screen.php, but not the WordPress glue, so check that it parses.
-      - run: php -l fairtoll.php && php -l src/admin.php
+      - run: php -l fairtoll.php && php -l src/admin.php && php -l uninstall.php
 
   # WordPress.org's Plugin Check, on the zip that is uploaded, so the plugin stays ready for the directory.
   plugin-check:

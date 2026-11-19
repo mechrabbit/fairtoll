@@ -31,6 +31,8 @@ jobs:
           php-version: "7.4"
           tools: composer:v2
           coverage: none
+      - run: composer install --no-interaction --no-progress && vendor/bin/phpunit && php -l fairtoll.php && php -l src/admin.php && php -l uninstall.php
+        working-directory: wordpress
       - run: sh wordpress/build-zip.sh && unzip -q fairtoll.zip -d build
       - uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
         env:
