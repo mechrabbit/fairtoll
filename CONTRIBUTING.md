@@ -100,6 +100,14 @@ The package ships after the validation phase finds a clear publisher pain. The h
 
 Run `npm ci`, then `npm test`, `npm run lint` and `npm run typecheck`. To see a change working on real requests, use the demo in [demo/README.md](demo/README.md).
 
+## Versions and releases
+
+A pull request that changes the published package, meaning anything under `src/`, `package.json` or `tsconfig.build.json`, adds a changeset: a short note in `.changeset/` that says whether the change is a patch, minor or major one, and what a publisher would notice. Run `npx changeset` and answer its two questions. CI fails a pull request that changes those files without one. If the change doesn't need a release, such as a new dev dependency, run `npx changeset --empty`.
+
+Before 1.0, a change that breaks the config or the API is a minor one, not a major one.
+
+To release, run `npm run release:version` on a branch named `release/<version>`, made from the latest `main`. It turns the waiting changesets into a new version in `package.json` and `package-lock.json` and a section in `CHANGELOG.md`, and deletes them. Review the changelog and merge it in a pull request. CI skips the changeset check on `release/` branches, since that pull request deletes the changesets. Then push a tag such as `v0.2.0` from the merged commit. The release workflow publishes it to npm.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE), the package's license.
