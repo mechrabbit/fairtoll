@@ -219,3 +219,5 @@ To work on Fairtoll, read [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 Fairtoll is licensed under the [Apache License 2.0](LICENSE).
+
+The WordPress plugin, in [`wordpress/`](wordpress), is licensed under the [GNU General Public License v2 or later](https://www.gnu.org/licenses/gpl-2.0.html), as WordPress.org asks of the plugins in its directory.

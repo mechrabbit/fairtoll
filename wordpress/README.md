@@ -75,3 +75,13 @@ vendor/bin/phpunit
 ```
 
 The plugin is a port of the package's `classify`, `decide` and `parseConfig`. The cases in [`spec/`](../spec) are run by both PHPUnit and the package's vitest tests, so a change that makes the two disagree fails on both sides. `npm run demo:wordpress` runs a local WordPress with the plugin installed, as [demo/README.md](../demo/README.md#wordpress) describes.
+
+## Publish to WordPress.org
+
+`readme.txt` is the plugin's page in the directory, so keep it in step with this file. CI runs WordPress.org's [Plugin Check](https://wordpress.org/plugins/plugin-check/) on the zip.
+
+To release a version, set it in the `Version` line of `fairtoll.php`, the `Stable tag` in `readme.txt`, and the changelog there, then push a tag such as `wordpress-v0.1.0`. [`wordpress-deploy.yml`](../.github/workflows/wordpress-deploy.yml) checks the three match, builds the zip and commits it to the plugin's SVN. It needs the repo secrets `SVN_USERNAME` and `SVN_PASSWORD`. The directory's banner, icon and screenshots go in `wordpress/.wordpress-org/`, named as [Plugin Assets](https://developer.wordpress.org/plugins/wordpress-org/plugin-assets/) says.
+
+## License
+
+The plugin is licensed under the [GNU General Public License v2 or later](https://www.gnu.org/licenses/gpl-2.0.html). The rest of this repo is Apache-2.0.
