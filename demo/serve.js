@@ -75,7 +75,7 @@ app.get("/facilitator/supported", (_req, res) => res.json(supported));
 app.post("/facilitator/settle", express.json(), (req, res) => res.json(settle(req.body)));
 
 // A stand-in for the publisher's site on fairtoll.net. GET is what /site fetches. PUT sets the config, as the
-// dashboard would, and DELETE takes the service down, so it answers 503 until the next PUT.
+// dashboard would, and answers with what it will send. DELETE takes the service down, so it answers 503 until the next PUT.
 let serviceConfig = { ai: "charge", price: "0.002" };
 app.get("/service/v1/config", (req, res) => {
 	if (req.get("authorization") !== `Bearer ${site.key}`) return res.status(401).send("Unknown site key\n");
@@ -85,7 +85,7 @@ app.get("/service/v1/config", (req, res) => {
 });
 app.put("/service/v1/config", express.json(), (req, res) => {
 	serviceConfig = req.body;
-	res.type("text/plain").send(`The service will send ${JSON.stringify(serviceConfig)}\n`);
+	res.json(serviceConfig);
 });
 app.delete("/service/v1/config", (_req, res) => {
 	serviceConfig = undefined;
