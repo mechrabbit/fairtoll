@@ -85,7 +85,7 @@ app.get("/service/v1/config", (req, res) => {
 });
 app.put("/service/v1/config", express.json(), (req, res) => {
 	serviceConfig = req.body;
-	res.send(`The service will send ${JSON.stringify(serviceConfig)}\n`);
+	res.type("text/plain").send(`The service will send ${JSON.stringify(serviceConfig)}\n`);
 });
 app.delete("/service/v1/config", (_req, res) => {
 	serviceConfig = undefined;
