@@ -2,10 +2,6 @@
 
 Each release's changes, newest first. Fairtoll follows [semantic versioning](https://semver.org/). Before 1.0, a minor version can break the config or the API.
 
-## 0.2.0 (unreleased)
-
-- The `site` option loads the config from the publisher's site on fairtoll.net and refreshes it every minute, so prices and rules change without a redeploy. The wallet and network stay in the publisher's code. `siteConfigErrors` lists the mistakes in a config before it is saved there.
-
 ## 0.1.0
 
 The first release.
