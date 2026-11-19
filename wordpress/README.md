@@ -53,14 +53,15 @@ Tick **Log each AI request to the PHP error log** on the settings page. Each req
 
 `action` is what the config decided: `allow`, `block`, or `charge`, which this version lets through. Requests from readers aren't logged. Logging is off by default, because a path can carry a secret, such as a password reset token.
 
-Where the PHP error log is depends on your host. Most hosting control panels show it. You can also have WordPress write it to `wp-content/debug.log` by adding these lines to `wp-config.php`:
+Where the PHP error log is depends on your host. Most hosting control panels show it. You can also have WordPress write it to a file of your choice by adding these lines to `wp-config.php`. `WP_DEBUG_LOG` only takes effect when `WP_DEBUG` is on. Put the file outside your site's public folder, because anyone can download a log in it, such as `wp-content/debug.log`, unless your server blocks it.
 
 ```php
-define( 'WP_DEBUG_LOG', true );
+define( 'WP_DEBUG', true );
+define( 'WP_DEBUG_LOG', '/path/outside/your/site/debug.log' );
 define( 'WP_DEBUG_DISPLAY', false );
 ```
 
-Then pick out Fairtoll's lines with `grep '{"fairtoll":1' wp-content/debug.log`.
+Then pick out Fairtoll's lines with `grep '{"fairtoll":1' /path/outside/your/site/debug.log`.
 
 ## When something goes wrong
 
@@ -80,7 +81,7 @@ The plugin is a port of the package's `classify`, `decide` and `parseConfig`. Th
 
 `readme.txt` is the plugin's page in the directory, so keep it in step with this file. CI runs WordPress.org's [Plugin Check](https://wordpress.org/plugins/plugin-check/) on the zip.
 
-To release a version, set it in the `Version` line of `fairtoll.php`, the `Stable tag` in `readme.txt`, and the changelog there, then push a tag such as `wordpress-v0.1.0`. [`wordpress-deploy.yml`](../.github/workflows/wordpress-deploy.yml) checks the three match, builds the zip and commits it to the plugin's SVN. It needs the repo secrets `SVN_USERNAME` and `SVN_PASSWORD`. The directory's banner, icon and screenshots go in `wordpress/.wordpress-org/`, named as [Plugin Assets](https://developer.wordpress.org/plugins/wordpress-org/plugin-assets/) says.
+To release a version, set it in the `Version` line of `fairtoll.php`, the `Stable tag` in `readme.txt`, and the changelog there, then push a tag such as `wordpress-v0.1.0`. [`wordpress-deploy.yml`](../.github/workflows/wordpress-deploy.yml) checks the tag matches the `Version` and the `Stable tag`, runs the tests, builds the zip and commits it to the plugin's SVN. It needs the repo secrets `SVN_USERNAME` and `SVN_PASSWORD`. The directory's banner, icon and screenshots go in `wordpress/.wordpress-org/`, named as [Plugin Assets](https://developer.wordpress.org/plugins/wordpress-org/plugin-assets/) says.
 
 ## License
 

@@ -61,7 +61,7 @@ Write a rule for a post or page as a wildcard, such as `/my-post/*`, so it cover
 
 = Where do I find the log? =
 
-In the PHP error log, which most hosting control panels show. You can also have WordPress write it to `wp-content/debug.log` by adding `define( 'WP_DEBUG_LOG', true );` and `define( 'WP_DEBUG_DISPLAY', false );` to `wp-config.php`. Each of Fairtoll's lines starts with `{"fairtoll":1`.
+In the PHP error log, which most hosting control panels show. You can also have WordPress write it to a file of your choice by adding `define( 'WP_DEBUG', true );`, `define( 'WP_DEBUG_LOG', '/path/outside/your/site/debug.log' );` and `define( 'WP_DEBUG_DISPLAY', false );` to `wp-config.php`. Put the file outside your site's public folder, because anyone can download a log in it, such as `wp-content/debug.log`, unless your server blocks it. Each of Fairtoll's events is a line of JSON starting `{"fairtoll":1`.
 
 = What happens if my config has a mistake? =
 
