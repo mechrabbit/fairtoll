@@ -7,6 +7,10 @@
 
 namespace Fairtoll;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 function add_settings_page(): void {
 	add_options_page( 'Fairtoll', 'Fairtoll', 'manage_options', 'fairtoll', __NAMESPACE__ . '\render_settings_page' );
 }

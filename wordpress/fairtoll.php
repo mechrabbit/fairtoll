@@ -6,8 +6,8 @@
  * Version:           0.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * License:           Apache-2.0
- * License URI:       https://www.apache.org/licenses/LICENSE-2.0
+ * License:           GPLv2 or later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       fairtoll
  *
  * @package Fairtoll
@@ -54,7 +54,7 @@ function screen_request(): void {
 		return;
 	}
 	try {
-		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : null;
+		$user_agent = server_value( 'HTTP_USER_AGENT' );
 		// A human request is always allowed and isn't logged, because that would add a line to the log for every
 		// page view. So it skips reading the config.
 		if ( 'human' === classify( $user_agent )[0] ) {
@@ -67,16 +67,16 @@ function screen_request(): void {
 		}
 		$request = array(
 			'config'     => $parsed['config'],
-			'method'     => (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ),
+			'method'     => server_value( 'REQUEST_METHOD' ) ?? 'GET',
 			// The path WordPress routes by, without the query string. It isn't decoded, so a rule matches it as it
 			// would a path in the Express adapter.
-			'path'       => explode( '?', (string) $_SERVER['REQUEST_URI'], 2 )[0],
+			'path'       => explode( '?', (string) server_value( 'REQUEST_URI' ), 2 )[0],
 			'user_agent' => $user_agent,
 			'preflight'  => isset( $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] ),
 		);
 		$request['screened'] = screen( $request['config'], $request['method'], $request['path'], $user_agent, $request['preflight'] );
 	} catch ( \Throwable $e ) {
-		error_log( 'fairtoll: screening a request failed, so the request was passed through unscreened: ' . $e->getMessage() );
+		write_log( 'fairtoll: screening a request failed, so the request was passed through unscreened: ' . $e->getMessage() );
 		return;
 	}
 	ai_request( $request );
@@ -148,7 +148,7 @@ function screen_again( callable $resolve ): void {
 		}
 		$screened = screen( $request['config'], $request['method'], $path, $request['user_agent'], $request['preflight'] );
 	} catch ( \Throwable $e ) {
-		error_log( 'fairtoll: screening a request again failed, so the request was passed through: ' . $e->getMessage() );
+		write_log( 'fairtoll: screening a request again failed, so the request was passed through: ' . $e->getMessage() );
 		return;
 	}
 	$strength = array(
@@ -183,7 +183,7 @@ function block(): void {
 	// Once output has started, the status and headers can't be set, and a 200 with the block message could be
 	// cached and shown to readers.
 	if ( headers_sent() ) {
-		error_log( 'fairtoll: a blocked request was let through, because output had already started, so the 403 could not be sent' );
+		write_log( 'fairtoll: a blocked request was let through, because output had already started, so the 403 could not be sent' );
 		// So the event says what happened to the request.
 		$request                       = ai_request();
 		$request['screened']['action'] = 'allow';
@@ -218,8 +218,24 @@ function log_event(): void {
 			'reason'   => $screened['reason'],
 			'action'   => $screened['action'],
 		);
-		error_log( json_encode( $event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR ) );
+		write_log( wp_json_encode( $event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR ) );
 	} catch ( \Throwable $e ) {
-		error_log( 'fairtoll: logging a request failed, so its event was lost: ' . $e->getMessage() );
+		write_log( 'fairtoll: logging a request failed, so its event was lost: ' . $e->getMessage() );
 	}
+}
+
+/**
+ * A value from `$_SERVER`, such as a request header, exactly as the server gave it. It isn't unslashed, because it's
+ * read at plugins_loaded, before WordPress adds slashes to `$_SERVER`. It isn't sanitized, because rules match the
+ * path as it was sent, as they do in the Express adapter. It is only compared, and written to the log as JSON, never
+ * output to a page.
+ */
+function server_value( string $name ): ?string {
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Read raw on purpose, as the comment above says.
+	return isset( $_SERVER[ $name ] ) ? (string) $_SERVER[ $name ] : null;
+}
+
+/** Writes a line to the PHP error log, where the plugin reports its events and its failures. */
+function write_log( string $line ): void {
+	error_log( $line ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The log is the plugin's output.
 }

@@ -29,4 +29,20 @@ jobs:
       - run: composer install --no-interaction --no-progress
       - run: vendor/bin/phpunit
       # The tests load src/config.php and src/screen.php, but not the WordPress glue, so check that it parses.
-      - run: php -l fairtoll.php && php -l src/admin.php
+      - run: php -l fairtoll.php && php -l src/admin.php && php -l uninstall.php
+
+  # WordPress.org's Plugin Check, on the zip that is uploaded, so the plugin stays ready for the directory.
+  plugin-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "7.4"
+          tools: composer:v2
+          coverage: none
+      - run: sh wordpress/build-zip.sh && unzip -q fairtoll.zip -d build
+      - uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: build/fairtoll

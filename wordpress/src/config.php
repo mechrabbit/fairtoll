@@ -16,6 +16,10 @@ namespace Fairtoll;
 
 use kornrunner\Keccak;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 const KNOWN_FIELDS = array( 'ai', 'price', 'payTo', 'network', 'rules' );
 const RULE_FIELDS  = array( 'path', 'ai', 'price' );
 const NETWORKS     = array( 'base', 'base-sepolia' );

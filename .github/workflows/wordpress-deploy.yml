@@ -1,0 +1,46 @@
+name: Deploy WordPress plugin
+
+# Publishes the plugin to the WordPress.org directory when a tag such as wordpress-v0.1.0 is pushed. It commits the
+# zip's contents to the plugin's SVN trunk and tags that version. It needs the repo secrets SVN_USERNAME and
+# SVN_PASSWORD: a WordPress.org username with commit access to the plugin, and its SVN password, which is set under
+# Account & Security on the WordPress.org profile.
+on:
+  push:
+    tags: ["wordpress-v*"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches the plugin's version and the readme's stable tag
+        run: |
+          version="${GITHUB_REF_NAME#wordpress-v}"
+          header=$(sed -n 's/^ \* Version: *//p' wordpress/fairtoll.php)
+          stable=$(sed -n 's/^Stable tag: *//p' wordpress/readme.txt)
+          if [ "$version" != "$header" ] || [ "$version" != "$stable" ]; then
+            echo "The tag is $GITHUB_REF_NAME, but fairtoll.php says $header and readme.txt says $stable."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "7.4"
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-interaction --no-progress && vendor/bin/phpunit && php -l fairtoll.php && php -l src/admin.php && php -l uninstall.php
+        working-directory: wordpress
+      - run: sh wordpress/build-zip.sh && unzip -q fairtoll.zip -d build
+      - uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: fairtoll
+          VERSION: ${{ env.VERSION }}
+          BUILD_DIR: build/fairtoll
+          # The directory's banner, icon and screenshots, which go in SVN's assets/ rather than the plugin. It is
+          # skipped while the folder doesn't exist.
+          ASSETS_DIR: wordpress/.wordpress-org
