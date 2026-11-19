@@ -227,18 +227,15 @@ function log_event(): void {
 /**
  * A value from `$_SERVER`, such as a request header, exactly as the server gave it. It isn't unslashed, because it's
  * read at plugins_loaded, before WordPress adds slashes to `$_SERVER`. It isn't sanitized, because rules match the
- * path as it was sent, as they do in the Express adapter. It is only compared, and the path written to the log as
- * JSON, never output to a page or stored.
+ * path as it was sent, as they do in the Express adapter. It is only compared, and written to the log as JSON, never
+ * output to a page.
  */
 function server_value( string $name ): ?string {
 	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Read raw on purpose, as the comment above says.
 	return isset( $_SERVER[ $name ] ) ? (string) $_SERVER[ $name ] : null;
 }
 
-/**
- * Writes a line to the PHP error log, which is where the plugin reports its events, when logging is on, and its
- * failures. The publisher reads them there, as the settings page and readme say.
- */
+/** Writes a line to the PHP error log, where the plugin reports its events and its failures. */
 function write_log( string $line ): void {
 	error_log( $line ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The log is the plugin's output.
 }
