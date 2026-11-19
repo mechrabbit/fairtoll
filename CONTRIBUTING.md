@@ -106,7 +106,7 @@ A pull request that changes the published package, meaning anything under `src/`
 
 Before 1.0, a change that breaks the config or the API is a minor one, not a major one.
 
-To release, run `npm run release:version` on a branch named `release/<version>`, made from the latest `main`. It turns the waiting changesets into a new version in `package.json` and `package-lock.json` and a section in `CHANGELOG.md`, and deletes them. Review the changelog and merge it in a pull request. CI skips the changeset check on `release/` branches, since that pull request deletes the changesets. Then push a tag such as `v0.2.0` from the merged commit. The release workflow publishes it to npm.
+To release, run `npm run release:version` on a branch named `release/<version>`, made from the latest `main`. It turns the waiting changesets into a new version in `package.json` and `package-lock.json` and a section in `CHANGELOG.md`, and deletes them. Then set `packageVersion` in `src/core/gate.ts` to the new version; a test checks they match. Review the changelog and merge it in a pull request. CI skips the changeset check on `release/` branches, since that pull request deletes the changesets. Then push a tag such as `v0.2.0` from the merged commit. The release workflow publishes it to npm.
 
 ## License
 
