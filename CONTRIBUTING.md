@@ -27,7 +27,7 @@ The package is how Fairtoll gets onto publishers' sites and earns their trust. I
 3. **Never break the site.** Fail open. If the package throws, the page serves normally.
 4. **Run on and off Cloudflare from the same config.** A policy written for the Express adapter works unchanged in the Cloudflare Worker adapter.
 5. **Hold no money and no keys.** Payments settle directly to the publisher's wallet. The package never takes custody and never needs a private key.
-6. **Open the door to the hosted service without nagging.** The package connects through a pricing hook and an optional event feed. Both are off by default, and the package never prompts anyone to sign up.
+6. **Open the door to the hosted service without nagging.** The package connects through a pricing hook, an optional event feed, and an optional config loaded from the publisher's site on the hosted service. All are off by default, and the package never prompts anyone to sign up. A loaded config never sets the wallet, so the hosted service can't redirect payments.
 
 ## Rules for deciding
 
@@ -106,7 +106,7 @@ A pull request that changes the published package, meaning anything under `src/`
 
 Before 1.0, a change that breaks the config or the API is a minor one, not a major one.
 
-To release, run `npm run release:version` on a branch named `release/<version>`, made from the latest `main`. It turns the waiting changesets into a new version in `package.json` and `package-lock.json` and a section in `CHANGELOG.md`, and deletes them. Review the changelog and merge it in a pull request. CI skips the changeset check on `release/` branches, since that pull request deletes the changesets. Then push a tag such as `v0.2.0` from the merged commit. The release workflow publishes it to npm.
+To release, run `npm run release:version` on a branch named `release/<version>`, made from the latest `main`. It turns the waiting changesets into a new version in `package.json` and `package-lock.json` and a section in `CHANGELOG.md`, and deletes them. Then set `packageVersion` in `src/core/gate.ts` to the new version; a test checks they match. Review the changelog and merge it in a pull request. CI skips the changeset check on `release/` branches, since that pull request deletes the changesets. Then push a tag such as `v0.2.0` from the merged commit. The release workflow publishes it to npm.
 
 ## License
 

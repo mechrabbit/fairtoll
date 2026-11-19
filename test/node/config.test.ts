@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseConfig } from "../../src/core/index.js";
+import { parseConfig, siteConfigErrors } from "../../src/core/index.js";
 
 const wallet = "0x00000000000000000000000000000000000000AA";
 const charging = { ai: "charge", price: "0.002", payTo: wallet, network: "base-sepolia" };
@@ -115,5 +115,41 @@ describe("parseConfig", () => {
 	test("every error is reported, not only the first", () => {
 		const result = parseConfig({ license: 1, eventLog: 1, ai: "x" });
 		expect(result.ok ? [] : result.errors.map((e) => e.field)).toEqual(["license", "eventLog", "ai"]);
+	});
+});
+
+describe("siteConfigErrors", () => {
+	test("a config every install applies as written has none", () => {
+		expect(siteConfigErrors({})).toEqual([]);
+		expect(siteConfigErrors({ ai: "charge", price: "0.002", requires: ["rules.price"], rules: [{ path: "/free/*", ai: "allow" }] })).toEqual([]);
+		expect(siteConfigErrors({ ai: "allow", price: null, rules: null })).toEqual([]);
+	});
+
+	test("a field an install would ignore is a mistake, so a typo is caught", () => {
+		expect(siteConfigErrors({ ai: "block", prise: "0.01", rules: [{ path: "/a", ai: "allow", note: "x" }] })).toEqual([
+			{ field: "prise", message: "is not a known field" },
+			{ field: "rules[0].note", message: "is not a known field" },
+		]);
+	});
+
+	test("the wallet can only be set in the publisher's code", () => {
+		expect(siteConfigErrors({ ai: "block", payTo: `0x${"b".repeat(40)}`, network: "base" })).toEqual([
+			{ field: "payTo", message: "can only be set in the publisher's own code" },
+			{ field: "network", message: "can only be set in the publisher's own code" },
+		]);
+		expect(siteConfigErrors({ payTo: "x", prise: "0.01" }).map((e) => e.field)).toEqual(["payTo", "prise"]);
+	});
+
+	test("requires may only name fields this version knows", () => {
+		expect(siteConfigErrors({ requires: ["rules.schedule"] })).toEqual([{ field: "requires", message: 'must be a list of fields this version knows, such as "rules.price"' }]);
+		expect(siteConfigErrors({ requires: "ai" })).toHaveLength(1);
+	});
+
+	test("everything parseConfig refuses is refused, such as two rules for the same paths", () => {
+		expect(siteConfigErrors({ ai: "charge" })).toEqual([{ field: "price", message: 'is needed when ai is "charge"' }]);
+		expect(siteConfigErrors({ rules: [{ path: "/a", ai: "block" }, { path: "/A/", ai: "allow" }] })).toEqual([
+			{ field: "rules[1].path", message: "matches the same paths as rules[0]" },
+		]);
+		expect(siteConfigErrors([])).toEqual([{ field: "config", message: "must be a plain object" }]);
 	});
 });

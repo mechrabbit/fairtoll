@@ -216,6 +216,64 @@ function parseRules(value: unknown): Parsed<RuleInput[]> {
 }
 
 /**
+ * A copy of a config from fairtoll.net with only the fields this version knows, at the top level and in each rule,
+ * and the names of the fields left out, such as "rules[0].note". So a field a newer version adds there doesn't make
+ * older versions refuse the whole config. The known fields are left for `parseConfig` to check, and a `rules` or rule
+ * that isn't an array or a plain object is left as it is for `parseConfig` to refuse.
+ *
+ * Some fields aren't safe to ignore, such as one that limits when a rule charges. The config names those in
+ * `requires`, as a top-level field such as "schedule" or a rule field such as "rules.schedule", and this throws if
+ * any is one this version doesn't know, so the caller keeps its last config rather than apply only part of this one.
+ */
+export function withoutUnknownFields(input: Record<string, unknown>): { readonly config: Record<string, unknown>; readonly ignored: readonly string[] } {
+	// A null requires is no requires, as with every other field (see `presentValue`).
+	const { requires: given, ...rest } = input;
+	const requires = given ?? [];
+	if (!Array.isArray(requires) || !requires.every((name) => typeof name === "string")) {
+		throw new Error("the fetched config's requires must be a list of field names");
+	}
+	const known = [...knownFields, ...ruleFields.map((name) => `rules.${name}`)];
+	const unsupported = requires.filter((name) => !known.includes(name));
+	if (unsupported.length > 0) {
+		throw new Error(`the fetched config needs ${unsupported.join(", ")}, which this version of Fairtoll doesn't support, so update Fairtoll`);
+	}
+	const ignored: string[] = [];
+	const keep = (object: Record<string, unknown>, fields: readonly string[], prefix: string) => {
+		ignored.push(...unknownFieldErrors(object, fields, prefix).map((error) => error.field));
+		return Object.fromEntries(Object.entries(object).filter(([name]) => fields.includes(name)));
+	};
+	const config = keep(rest, knownFields, "");
+	if (Array.isArray(config.rules)) {
+		config.rules = config.rules.map((rule: unknown, index) => (isPlainObject(rule) ? keep(rule, ruleFields, `rules[${index}].`) : rule));
+	}
+	return { config, ignored };
+}
+
+/**
+ * The mistakes in a config meant for the publisher's site on fairtoll.net, for the service to check before it saves
+ * one: everything `parseConfig` refuses, a `payTo` or `network`, which a fetched config can't set, a `requires`
+ * naming a field this version doesn't know, and any field an install would ignore, so a typo such as "prise" is
+ * caught here rather than ignored. An empty list means every install of this version applies the config as written,
+ * as long as its own code sets the wallet and network that any charge needs.
+ */
+export function siteConfigErrors(input: unknown): ConfigError[] {
+	if (!isPlainObject(input)) return [{ field: "config", message: "must be a plain object" }];
+	const wallet = ["payTo", "network"]
+		.filter((name) => Object.hasOwn(input, name))
+		.map((field) => ({ field, message: "can only be set in the publisher's own code" }));
+	let known: ReturnType<typeof withoutUnknownFields>;
+	try {
+		known = withoutUnknownFields(input);
+	} catch {
+		return [...wallet, { field: "requires", message: "must be a list of fields this version knows, such as \"rules.price\"" }];
+	}
+	const ignored = known.ignored.map((field) => ({ field, message: "is not a known field" }));
+	// A placeholder wallet in place of the publisher's own, so a charge is checked as it will be with theirs.
+	const result = parseConfig({ ...known.config, payTo: `0x${"1".repeat(40)}`, network: "base-sepolia" });
+	return [...wallet, ...ignored, ...(result.ok ? [] : result.errors)];
+}
+
+/**
  * Reads an optional field and checks it with `valid`. A missing field (see `presentValue`) is undefined. An
  * invalid one is an error naming `errorField`, such as "rules[0].price".
  */
@@ -292,7 +350,7 @@ function isWalletAddress(value: unknown): value is string {
 }
 
 /** Only a plain object's own keys are the config, so a Promise or Map can't parse as an empty config. */
-function isPlainObject(input: unknown): input is Record<string, unknown> {
+export function isPlainObject(input: unknown): input is Record<string, unknown> {
 	if (typeof input !== "object" || input === null) return false;
 	const proto: unknown = Object.getPrototypeOf(input);
 	return proto === Object.prototype || proto === null;

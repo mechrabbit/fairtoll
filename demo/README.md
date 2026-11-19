@@ -16,6 +16,7 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
 | `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, charges every method but a CORS preflight, and lets everyone else through |
 | `/paths` | Fairtoll has rules: it charges AI bots and agents $0.01 under `/paths/premium/`, blocks them under `/paths/private/`, and lets every other path through |
+| `/site` | Fairtoll loads its config from a stand-in for fairtoll.net on the same server, and fetches it again once it is a minute old |
 
 `/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
 
@@ -27,6 +28,15 @@ curl -i -H 'Demo-Visitor: GPTBot' -H "PAYMENT-SIGNATURE: <what pay.js printed>" 
 ```
 
 `/paths` runs the settings' config with two rules added, `{ "path": "/paths/premium/*", "ai": "charge", "price": "0.01" }` and `{ "path": "/paths/private/*", "ai": "block" }`, and the same wallet and network as `/charged`. A rule's path is the whole path, not the part under where Fairtoll is mounted. Paths no rule matches follow the config's own `ai`, which is `"allow"` unless the settings set it. A rule matches the page a request names, so `/paths/PREMIUM/1` and `/paths/%70remium/1` are charged too, and an AI request whose path has a `..` segment, such as `/paths/premium/1/..%2f..%2farticles`, is blocked, because Express routes it under `/paths/premium` while it resolves to `/paths/articles`. The `Config` type in `src/core/config.ts` documents how rules match.
+
+`/site` keeps the same wallet and network as `/charged` in its own config, and loads the rest from `/service/v1/config`, which starts out charging $0.002 everywhere. Change it the way the dashboard would, and take the service down to see pages keep loading on the last config:
+
+```sh
+curl -X PUT -H 'Content-Type: application/json' -d '{"ai":"charge","price":"0.01"}' http://localhost:3000/service/v1/config
+curl -X DELETE http://localhost:3000/service/v1/config
+```
+
+A change shows from the second request after the config is a minute old, because the request that starts the fetch is served on the config already loaded.
 
 The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
 

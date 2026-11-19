@@ -2,7 +2,7 @@
 
 Each release's changes, newest first. Fairtoll follows [semantic versioning](https://semver.org/). Before 1.0, a minor version can break the config or the API.
 
-## 0.1.0 (unreleased)
+## 0.1.0
 
 The first release.
 
