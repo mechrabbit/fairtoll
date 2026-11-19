@@ -9,6 +9,10 @@
 
 namespace Fairtoll;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * User-agent tokens that AI crawlers and agents send. Anyone can send one, so a match is only a claim and never
  * makes a request verified. Tests keep this equal to spec/agents.json, as they do the TypeScript list.
