@@ -1,10 +1,10 @@
 import type { RequestClass } from "./types.js";
 
 /**
- * User-agent tokens that AI crawlers and agents send. Anyone can send one, so a match is
- * only a claim and never makes a request verified.
+ * User-agent tokens that AI crawlers and agents send. Anyone can send one, so a match is only a claim and never
+ * makes a request verified. The WordPress plugin has its own copy, and tests keep both equal to spec/agents.json.
  */
-const aiAgents = [
+export const aiAgents = [
 	"GPTBot",
 	"ChatGPT-User",
 	"OAI-SearchBot",

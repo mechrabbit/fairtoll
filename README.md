@@ -15,7 +15,7 @@ Undo any step by changing the config back, and your site behaves exactly as befo
 This is an early 0.x release. Know these limits before you rely on it:
 
 - **Bots are recognised by their user-agent only.** Fairtoll matches the names that AI crawlers and agents send, such as `GPTBot`, `ClaudeBot` and `PerplexityBot`. A bot that pretends to be a browser is treated as a reader and served the page for free. So blocking and charging only catch bots that identify themselves honestly. Checking a bot's identity cryptographically is planned.
-- **Express and Next.js only.** Fairtoll needs Express 5 or Next.js 16, and Node 20 or later. A Cloudflare Worker adapter is planned.
+- **Express and Next.js only.** Fairtoll needs Express 5 or Next.js 16, and Node 20 or later. A Cloudflare Worker adapter is planned. On WordPress, a [plugin](wordpress/README.md) observes and blocks, and can't charge yet.
 - **It only sees requests that reach your server.** If a CDN or cache sits in front of your site, read [Behind a CDN or cache](#behind-a-cdn-or-cache).
 
 ## Install

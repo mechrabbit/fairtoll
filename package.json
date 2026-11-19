@@ -68,6 +68,8 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"demo:serve": "npm run build --silent && node demo/serve.js",
+		"demo:wordpress": "sh demo/wordpress/serve.sh",
+		"wordpress:zip": "sh wordpress/build-zip.sh",
 		"demo:next": "npm run build --silent && next build demo/next && next start demo/next",
 		"bench": "npm run build --silent && node bench/latency.js"
 	},

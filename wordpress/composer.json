@@ -1,0 +1,19 @@
+{
+	"name": "fairtoll/wordpress",
+	"description": "The Fairtoll WordPress plugin: see and block AI bot and agent traffic.",
+	"type": "wordpress-plugin",
+	"license": "Apache-2.0",
+	"require": {
+		"php": ">=7.4",
+		"kornrunner/keccak": "1.1.0"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^9.6"
+	},
+	"config": {
+		"platform": {
+			"php": "7.4.33"
+		},
+		"sort-packages": true
+	}
+}

@@ -1,0 +1,22 @@
+[
+	"GPTBot",
+	"ChatGPT-User",
+	"OAI-SearchBot",
+	"ClaudeBot",
+	"Claude-User",
+	"Claude-SearchBot",
+	"anthropic-ai",
+	"PerplexityBot",
+	"Perplexity-User",
+	"Google-CloudVertexBot",
+	"CCBot",
+	"Bytespider",
+	"Amazonbot",
+	"meta-externalagent",
+	"meta-externalfetcher",
+	"cohere-ai",
+	"MistralAI-User",
+	"DuckAssistBot",
+	"YouBot",
+	"Diffbot"
+]
