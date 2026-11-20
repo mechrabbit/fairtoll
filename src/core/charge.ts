@@ -15,11 +15,17 @@ export type { FacilitatorConfig };
 
 /**
  * What the adapter does with a request it charges. `respond` is a 402 with the price, for a request that
- * hasn't paid or whose payment the facilitator rejected. `paid` means the payment has settled, so the
- * adapter adds the headers, which carry the transaction, and serves the page.
+ * sent no payment (`payment` is "none") or whose payment was refused ("rejected"). `paid` means the payment
+ * has settled, so the adapter adds the headers, which carry the transaction, and serves the page.
  */
 export type ChargeOutcome =
-	| { readonly kind: "respond"; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
+	| {
+			readonly kind: "respond";
+			readonly status: number;
+			readonly headers: Readonly<Record<string, string>>;
+			readonly body: string;
+			readonly payment: "none" | "rejected";
+	  }
 	| { readonly kind: "paid"; readonly headers: Readonly<Record<string, string>> };
 
 /**
@@ -66,8 +72,12 @@ export function createCharger(charge: Charge, facilitator: FacilitatorConfig = {
 
 	return async (request, method, path) => {
 		await start();
-		const result = await server.processHTTPRequest({ adapter: httpAdapter(request, method, path), path, method });
-		if (result.type === "payment-error") return respond(result.response);
+		const adapter = httpAdapter(request, method, path);
+		const result = await server.processHTTPRequest({ adapter, path, method });
+		if (result.type === "payment-error") {
+			// The payment x402 read, so a HEAD request's payment, which is never read, counts as none.
+			return respond(result.response, adapter.getHeader("payment-signature") === undefined ? "none" : "rejected");
+		}
 		if (result.type === "no-payment-required") throw new Error("x402 found no route for a charged request");
 		// The upfront flow has settled by now, and a rejected settle came back above as a payment-error.
 		if (!result.beforeHandlerSettlement) throw new Error("x402 verified a payment without settling it");
@@ -110,8 +120,9 @@ export function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /** What x402 reads from a request. `method` and `path` are what the app routes the request by. */
 export function httpAdapter(request: Request, method: string, path: string): HTTPAdapter {
-	// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body.
-	const payment = method === "HEAD" ? undefined : (request.headers.get("payment-signature") ?? undefined);
+	// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body. An empty
+	// header is no payment, as x402 reads it, so the event says "none" for it too.
+	const payment = method === "HEAD" ? undefined : request.headers.get("payment-signature") || undefined;
 	return {
 		getHeader: (name) => (name.toLowerCase() === "payment-signature" ? payment : (request.headers.get(name) ?? undefined)),
 		getMethod: () => method,
@@ -124,10 +135,10 @@ export function httpAdapter(request: Request, method: string, path: string): HTT
 	};
 }
 
-function respond(response: HTTPResponseInstructions): ChargeOutcome {
+function respond(response: HTTPResponseInstructions, payment: "none" | "rejected"): ChargeOutcome {
 	const body = typeof response.body === "string" ? response.body : JSON.stringify(response.body ?? {});
 	// The 402 depends on the request's payment, so a shared cache must not replay it to other visitors.
-	return { kind: "respond", status: response.status, headers: { ...response.headers, "Cache-Control": "no-store" }, body };
+	return { kind: "respond", status: response.status, headers: { ...response.headers, "Cache-Control": "no-store" }, body, payment };
 }
 
 /**

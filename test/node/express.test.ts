@@ -161,6 +161,7 @@ describe("the log option", () => {
 				path: "/articles/2",
 				class: "unverifiedBot",
 				reason: "user-agent claims GPTBot",
+				bot: "GPTBot",
 				action: "allow",
 			},
 		]);

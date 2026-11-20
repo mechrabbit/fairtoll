@@ -1,6 +1,6 @@
 import { createCharger, type Charger, type FacilitatorConfig } from "./charge.js";
 import { isPlainObject, parseConfig, withoutUnknownFields, type Charge } from "./config.js";
-import { allowsEverything, screen, type Action, type EventSink } from "./screen.js";
+import { allowsEverything, screen, type Action, type DecisionEvent, type EventSink, type Payment } from "./screen.js";
 
 export interface Options {
 	/**
@@ -27,6 +27,13 @@ export interface Site {
 	readonly key: string;
 	/** Where the config is fetched from. It defaults to fairtoll.net's, and is only for testing. */
 	readonly url?: string;
+	/**
+	 * Sends fairtoll.net each event that `log` would get, so the dashboard can show the site's AI traffic and what it
+	 * earned. It is off unless set to true, because an event carries the path, which can hold a secret such as a reset
+	 * token. Each event is posted on its own to `events` next to `url`, such as https://fairtoll.net/v1/events, and
+	 * an event that can't be sent is reported and dropped, never retried, along with every event for 30 seconds after it.
+	 */
+	readonly events?: boolean;
 }
 
 /**
@@ -57,6 +64,7 @@ export interface Gate {
 const blockedMessage = "This site does not allow AI bots or agents.\n";
 // Shared by every request passed on unpaid, so it is frozen: an adapter that wrote to it would change them all.
 const pass: Outcome = Object.freeze({ kind: "pass", headers: Object.freeze({}) });
+const nothingLogged = Promise.resolve();
 
 /**
  * What every adapter shares: screen a request, then answer a block with a 403, a charge with x402's 402 or the
@@ -66,14 +74,15 @@ const pass: Outcome = Object.freeze({ kind: "pass", headers: Object.freeze({}) }
  * An invalid config or option throws here, so the adapter can report a mistake before it serves a request.
  */
 export function createGate(input: unknown, options: Options = {}): Gate {
+	// Checked before `site`, which wraps the log in one that also sends events.
+	if (options.log !== undefined && typeof options.log !== "function") {
+		throw new Error("Invalid fairtoll options: log must be a function");
+	}
 	const { site, ...rest } = options;
-	if (site !== undefined) return createSiteGate(input, site, (config) => createGate(config, rest));
+	if (site !== undefined) return createSiteGate(input, site, rest);
 	const result = parseConfig(input);
 	if (!result.ok) {
 		throw new Error(`Invalid fairtoll config:\n${result.errors.map((e) => `  ${e.field} ${e.message}`).join("\n")}`);
-	}
-	if (options.log !== undefined && typeof options.log !== "function") {
-		throw new Error("Invalid fairtoll options: log must be a function");
 	}
 	const { config } = result;
 	const { log, facilitator } = options;
@@ -92,31 +101,60 @@ export function createGate(input: unknown, options: Options = {}): Gate {
 		if (!chargers.has(key)) chargers.set(key, createCharger(policy.charge, facilitator));
 	}
 
-	// Never rejects: when charging fails, such as when the facilitator can't be reached, the request is passed on unpaid.
-	async function outcomeFor(action: Action, request: Request, method: string, path: string): Promise<Outcome> {
-		if (action.kind === "allow") return pass;
+	/**
+	 * The outcome, and for a charged request what happened to its payment. Never rejects: when charging fails, such
+	 * as when the facilitator can't be reached, the request is passed on unpaid.
+	 */
+	async function outcomeFor(action: Action, request: Request, method: string, path: string): Promise<{ outcome: Outcome; payment?: Payment }> {
+		if (action.kind === "allow") return { outcome: pass };
 		if (action.kind === "block") {
 			// The 403 depends on the user-agent, so a shared cache must not replay it to other visitors.
 			const headers = { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" };
-			return { kind: "respond", status: 403, headers, body: blockedMessage };
+			return { outcome: { kind: "respond", status: 403, headers, body: blockedMessage } };
 		}
 		try {
 			const charger = chargers.get(chargerKey(action.charge));
 			// Can't happen, because every policy's charger was made above.
 			if (charger === undefined) throw new Error("no charger was made at startup for this charge");
-			const outcome = await charger(request, method, path);
-			return outcome.kind === "paid" ? { kind: "pass", headers: outcome.headers } : outcome;
+			const charged = await charger(request, method, path);
+			if (charged.kind === "paid") return { outcome: { kind: "pass", headers: charged.headers }, payment: "paid" };
+			const { payment, ...outcome } = charged;
+			return { outcome, payment };
 		} catch (error) {
 			console.error("fairtoll: charging a request failed, so it was passed on without payment:", error);
-			return pass;
+			return { outcome: pass, payment: "failed" };
 		}
 	}
 
 	return {
 		idle: log === undefined && allowsEverything(config),
 		check(request, method, path) {
-			const { action, logged } = screen(request, method, path, config, log);
-			return { outcome: outcomeFor(action, request, method, path), logged };
+			const screenedAt = Date.now();
+			const { action, classification } = screen(request, method, path, config);
+			const decided = outcomeFor(action, request, method, path);
+			const outcome = decided.then((d) => d.outcome);
+			// A human request isn't logged, because that would add a line to the app's logs for every page view.
+			if (log === undefined || classification === undefined || classification.class === "human") return { outcome, logged: nothingLogged };
+			// Logged once the outcome is known, so a charged request's event says whether it paid. Anything in logging
+			// that throws becomes a rejection here, and is reported, so logging can't change the outcome.
+			const logged = decided
+				.then(async ({ payment }) => {
+					const event: DecisionEvent = {
+						fairtoll: 1,
+						time: new Date(screenedAt).toISOString(),
+						path,
+						class: classification.class,
+						reason: classification.reason,
+						...(classification.bot !== undefined && { bot: classification.bot }),
+						action: action.kind,
+						...(action.kind === "charge" && { price: action.charge.price, network: action.charge.network, payment }),
+					};
+					await log(event);
+				})
+				.catch((error: unknown) => {
+					console.error("fairtoll: logging a request failed, so its event was lost:", error);
+				});
+			return { outcome, logged };
 		},
 	};
 }
@@ -132,6 +170,8 @@ const refreshAfterMs = 60_000;
 /** How long requests wait for the first fetch, so a fresh process doesn't serve free pages while it runs. */
 const firstFetchWaitMs = 1_000;
 const fetchTimeoutMs = 5_000;
+/** How long events are dropped after one fails to send. */
+const pauseAfterFailureMs = 30_000;
 
 /**
  * A gate whose config comes from the site on fairtoll.net. The fetched config sets `ai`, `price` and `rules`, and
@@ -143,11 +183,13 @@ const fetchTimeoutMs = 5_000;
  *   background, and it and every request until the fetch ends use the config already loaded.
  * - A fetched field this version doesn't know is ignored with a warning, so fairtoll.net can add fields, unless the
  *   config lists it in `requires` (see `withoutUnknownFields`).
- * - A fetch that fails, or brings a config `build` refuses, prints the error and keeps the last config.
- * `build` makes the gate for one config, and throws on an invalid one.
+ * - A fetch that fails, or brings a config the gate refuses, prints the error and keeps the last config.
+ * - With `events`, each event goes to fairtoll.net as well as to `log`, if there is one.
  */
-function createSiteGate(input: unknown, site: Site, build: (config: unknown) => Gate): Gate {
-	const { key, url } = siteOptions(site);
+function createSiteGate(input: unknown, site: Site, options: Omit<Options, "site">): Gate {
+	const { key, url, events } = siteOptions(site);
+	const gateOptions = events ? { ...options, log: sendingEvents(new URL("events", url).href, key, options.log) } : options;
+	const build = (config: unknown) => createGate(config, gateOptions);
 	// Throws on an invalid input, so it's a plain object after this line.
 	let gate = build(input);
 	const local = input as Record<string, unknown>;
@@ -221,10 +263,44 @@ function createSiteGate(input: unknown, site: Site, build: (config: unknown) => 
 	};
 }
 
-/** The site's key and url, or a throw saying which is wrong. */
-function siteOptions(site: unknown): { key: string; url: string } {
+/**
+ * A log that posts each event to `url` and passes it to `log`, if there is one. A failed post is reported here, so
+ * an error that reaches the gate is always `log`'s own.
+ */
+function sendingEvents(url: string, key: string, log: EventSink | undefined): EventSink {
+	async function send(event: DecisionEvent): Promise<void> {
+		const response = await fetch(url, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Fairtoll-Version": packageVersion },
+			body: JSON.stringify(event),
+			signal: AbortSignal.timeout(fetchTimeoutMs),
+		});
+		// Nothing reads the answer, so its body is cancelled to free the connection.
+		await response.body?.cancel();
+		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+	}
+	// After a failed post, events are dropped for `pauseAfterFailureMs`, so an outage at fairtoll.net doesn't hold a
+	// post open for every bot request, or print an error for each. Posts already in flight that fail print nothing.
+	let pausedUntil = 0;
+	const report = (error: unknown) => {
+		if (Date.now() < pausedUntil) return;
+		pausedUntil = Date.now() + pauseAfterFailureMs;
+		console.error(`fairtoll: could not send an event to ${url}, so events are dropped for the next ${pauseAfterFailureMs / 1000} seconds:`, error);
+	};
+	return async (event) => {
+		const sent = Date.now() < pausedUntil ? undefined : send(event).catch(report);
+		try {
+			await log?.(event);
+		} finally {
+			await sent;
+		}
+	};
+}
+
+/** The site's key, url and events, or a throw saying which is wrong. */
+function siteOptions(site: unknown): { key: string; url: string; events: boolean } {
 	if (typeof site !== "object" || site === null) throw new Error("Invalid fairtoll options: site must be an object with a key");
-	const { key, url: given } = site as Record<string, unknown>;
+	const { key, url: given, events = false } = site as Record<string, unknown>;
 	const url = given ?? defaultSiteUrl;
 	// Printable ASCII only, so a key with a stray newline, such as from a secrets file, fails here and not on every fetch.
 	if (typeof key !== "string" || !/^[\x21-\x7e]+$/.test(key)) {
@@ -234,7 +310,8 @@ function siteOptions(site: unknown): { key: string; url: string } {
 	if (!isHttpUrl(url) || (new URL(url).protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname))) {
 		throw new Error("Invalid fairtoll options: site.url must be an https url, or http on localhost");
 	}
-	return { key, url };
+	if (typeof events !== "boolean") throw new Error("Invalid fairtoll options: site.events must be true or false");
+	return { key, url, events };
 }
 
 function delay(ms: number): Promise<void> {

@@ -16,7 +16,7 @@ It has one endpoint for each way a publisher can use Fairtoll, so the same reque
 | `/blocked` | Fairtoll answers AI bots and agents with a 403, and lets everyone else through |
 | `/charged` | Fairtoll answers AI bots and agents with a 402 and a price, serves the page once they pay, charges every method but a CORS preflight, and lets everyone else through |
 | `/paths` | Fairtoll has rules: it charges AI bots and agents $0.01 under `/paths/premium/`, blocks them under `/paths/private/`, and lets every other path through |
-| `/site` | Fairtoll loads its config from a stand-in for fairtoll.net on the same server, and fetches it again once it is a minute old |
+| `/site` | Fairtoll loads its config from a stand-in for fairtoll.net on the same server, fetches it again once it is a minute old, and sends the stand-in each event |
 
 `/charged` charges $0.002 on Base Sepolia, paid to `0x000000000000000000000000000000000000dEaD`. It settles payments through a stand-in facilitator on the same server, at `/facilitator`, so no money moves and no wallet needs funds. The stand-in settles a payment that names the right price and wallet, and rejects one it has already settled. It checks no signature, so the demo shows Fairtoll's side of a payment, not a real one.
 
@@ -37,6 +37,8 @@ curl -X DELETE http://localhost:3000/service/v1/config
 ```
 
 A change shows from the second request after the config is a minute old, because the request that starts the fetch is served on the config already loaded.
+
+`/site` also has `events: true`, so each AI request's event is posted to `/service/v1/events`, which prints it as `service received {...}`. A charged request's event says whether it paid. While the service is down, each event is printed as an error and dropped.
 
 The site's `/robots.txt` sits behind the same setup as `/blocked`, and every visitor gets it, because blocking always lets `/robots.txt` through.
 
