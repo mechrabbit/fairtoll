@@ -178,6 +178,31 @@ describe("site.events", () => {
 		expect(error.mock.calls[0]?.[0]).toContain(`could not send an event to ${eventsUrl}`);
 	});
 
+	test("after a failed send, events are dropped for 30 seconds with one error, then sent again", async () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const posts = stubService({ ai: "block" }, 500);
+		const { events, log } = collect();
+		const gate = createGate(wallet, { log, site: { ...site, events: true } });
+		const send = async () => {
+			const { outcome, logged } = gate.check(request(gptBot), "GET", "/articles/1");
+			await logged;
+			return outcome;
+		};
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			await send();
+			expect(await send()).toMatchObject({ status: 403 });
+			expect(posts).toHaveLength(1);
+			expect(events).toHaveLength(2);
+			expect(error).toHaveBeenCalledOnce();
+			vi.advanceTimersByTime(30_000);
+			await send();
+			expect(posts).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	test("an events setting that isn't true or false throws at startup", () => {
 		expect(() => createGate(wallet, { site: { ...site, events: "yes" as never } })).toThrow("site.events must be true or false");
 	});

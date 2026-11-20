@@ -31,7 +31,7 @@ export interface Site {
 	 * Sends fairtoll.net each event that `log` would get, so the dashboard can show the site's AI traffic and what it
 	 * earned. It is off unless set to true, because an event carries the path, which can hold a secret such as a reset
 	 * token. Each event is posted on its own to `events` next to `url`, such as https://fairtoll.net/v1/events, and
-	 * an event that can't be sent is reported and dropped, never retried.
+	 * an event that can't be sent is reported and dropped, never retried, along with every event for 30 seconds after it.
 	 */
 	readonly events?: boolean;
 }
@@ -170,6 +170,8 @@ const refreshAfterMs = 60_000;
 /** How long requests wait for the first fetch, so a fresh process doesn't serve free pages while it runs. */
 const firstFetchWaitMs = 1_000;
 const fetchTimeoutMs = 5_000;
+/** How long events are dropped after one fails to send. */
+const pauseAfterFailureMs = 30_000;
 
 /**
  * A gate whose config comes from the site on fairtoll.net. The fetched config sets `ai`, `price` and `rules`, and
@@ -277,8 +279,16 @@ function sendingEvents(url: string, key: string, log: EventSink | undefined): Ev
 		await response.body?.cancel();
 		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
 	}
+	// After a failed post, events are dropped for `pauseAfterFailureMs`, so an outage at fairtoll.net doesn't hold a
+	// post open for every bot request, or print an error for each. Posts already in flight that fail print nothing.
+	let pausedUntil = 0;
+	const report = (error: unknown) => {
+		if (Date.now() < pausedUntil) return;
+		pausedUntil = Date.now() + pauseAfterFailureMs;
+		console.error(`fairtoll: could not send an event to ${url}, so events are dropped for the next ${pauseAfterFailureMs / 1000} seconds:`, error);
+	};
 	return async (event) => {
-		const sent = send(event).catch((error: unknown) => console.error(`fairtoll: could not send an event to ${url}, so it was lost:`, error));
+		const sent = Date.now() < pausedUntil ? undefined : send(event).catch(report);
 		try {
 			await log?.(event);
 		} finally {
