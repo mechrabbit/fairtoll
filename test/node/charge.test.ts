@@ -22,7 +22,7 @@ function charger(config: Charge = charging, url = facilitator.url) {
 	const charge = createCharger(config, { url });
 	return (init: { method?: string; payment?: string } = {}) =>
 		charge(
-			new Request("http://localhost/", { headers: { "user-agent": gptBot, ...(init.payment ? { "payment-signature": init.payment } : {}) } }),
+			new Request("http://localhost/", { headers: { "user-agent": gptBot, ...(init.payment !== undefined ? { "payment-signature": init.payment } : {}) } }),
 			init.method ?? "GET",
 			"/articles/1",
 		);
@@ -65,6 +65,10 @@ test("a payment for a lower price gets a 402 and nothing settles", async () => {
 test("a forged payment gets a 402", async () => {
 	vi.spyOn(console, "warn").mockImplementation(() => {});
 	expect(await charger()({ payment: "not-a-payment" })).toMatchObject({ kind: "respond", status: 402, payment: "rejected" });
+});
+
+test("an empty payment header counts as no payment", async () => {
+	expect(await charger()({ payment: "" })).toMatchObject({ kind: "respond", status: 402, payment: "none" });
 });
 
 test("a HEAD request gets the price and is never charged, even with a payment", async () => {

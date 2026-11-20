@@ -120,8 +120,9 @@ export function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /** What x402 reads from a request. `method` and `path` are what the app routes the request by. */
 export function httpAdapter(request: Request, method: string, path: string): HTTPAdapter {
-	// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body.
-	const payment = method === "HEAD" ? undefined : (request.headers.get("payment-signature") ?? undefined);
+	// No payment is read from a HEAD request, so it gets the price and is never charged for an empty body. An empty
+	// header is no payment, as x402 reads it, so the event says "none" for it too.
+	const payment = method === "HEAD" ? undefined : request.headers.get("payment-signature") || undefined;
 	return {
 		getHeader: (name) => (name.toLowerCase() === "payment-signature" ? payment : (request.headers.get(name) ?? undefined)),
 		getMethod: () => method,

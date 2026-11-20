@@ -273,7 +273,7 @@ function sendingEvents(url: string, key: string, log: EventSink | undefined): Ev
 			body: JSON.stringify(event),
 			signal: AbortSignal.timeout(fetchTimeoutMs),
 		});
-		// Nothing reads the answer, so its body is let go of rather than holding the connection.
+		// Nothing reads the answer, so its body is cancelled to free the connection.
 		await response.body?.cancel();
 		if (!response.ok) throw new Error(`${url} answered ${response.status}`);
 	}
