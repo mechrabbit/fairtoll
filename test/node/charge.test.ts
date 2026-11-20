@@ -35,7 +35,7 @@ function pay(outcome: ChargeOutcome) {
 
 test("an unpaid request gets a 402 with the price, which a shared cache must not keep", async () => {
 	const outcome = await charger()();
-	expect(outcome).toMatchObject({ kind: "respond", status: 402, headers: { "Cache-Control": "no-store" } });
+	expect(outcome).toMatchObject({ kind: "respond", status: 402, headers: { "Cache-Control": "no-store" }, payment: "none" });
 	const [accepted] = createPayer().decode(outcome.headers["PAYMENT-REQUIRED"]!).accepts;
 	expect(accepted).toMatchObject({ scheme: "exact", network: "eip155:84532", amount: "2000", payTo: wallet });
 });
@@ -53,7 +53,7 @@ test("a payment used twice is paid only once", async () => {
 	const charge = charger();
 	const payment = await pay(await charge());
 	expect((await charge({ payment })).kind).toBe("paid");
-	expect(await charge({ payment })).toMatchObject({ kind: "respond", status: 402 });
+	expect(await charge({ payment })).toMatchObject({ kind: "respond", status: 402, payment: "rejected" });
 });
 
 test("a payment for a lower price gets a 402 and nothing settles", async () => {
@@ -64,13 +64,13 @@ test("a payment for a lower price gets a 402 and nothing settles", async () => {
 
 test("a forged payment gets a 402", async () => {
 	vi.spyOn(console, "warn").mockImplementation(() => {});
-	expect(await charger()({ payment: "not-a-payment" })).toMatchObject({ kind: "respond", status: 402 });
+	expect(await charger()({ payment: "not-a-payment" })).toMatchObject({ kind: "respond", status: 402, payment: "rejected" });
 });
 
 test("a HEAD request gets the price and is never charged, even with a payment", async () => {
 	const charge = charger();
 	const payment = await pay(await charge());
-	expect(await charge({ method: "HEAD", payment })).toMatchObject({ kind: "respond", status: 402 });
+	expect(await charge({ method: "HEAD", payment })).toMatchObject({ kind: "respond", status: 402, payment: "none" });
 	expect(facilitator.settled).toEqual([]);
 });
 

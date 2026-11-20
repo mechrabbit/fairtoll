@@ -33,11 +33,13 @@ export interface Classification {
 	readonly class: RequestClass;
 	/** Why the request got its class, for the event log. */
 	readonly reason: string;
+	/** The AI bot or agent the user-agent names, such as "GPTBot", when it names one. */
+	readonly bot?: string;
 }
 
 export function classify(request: Request): Classification {
 	const match = aiAgentPattern.exec(request.headers.get("user-agent") ?? "")?.[1];
 	const claimed = match && canonicalAgent.get(match.toLowerCase());
-	if (claimed) return { class: "unverifiedBot", reason: `user-agent claims ${claimed}` };
+	if (claimed) return { class: "unverifiedBot", reason: `user-agent claims ${claimed}`, bot: claimed };
 	return { class: "human", reason: "no bot signals" };
 }

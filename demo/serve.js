@@ -54,9 +54,10 @@ const pathsConfig = {
 };
 // /charged and /paths settle through the stand-in facilitator below, on this same server, so its calls print here too.
 const chargedOptions = { ...options, facilitator: { url: `http://localhost:${port}/facilitator` } };
-// /site loads its config from the stand-in service below, on this same server, and keeps the wallet and network here.
+// /site loads its config from the stand-in service below, on this same server, keeps the wallet and network here,
+// and sends the service its events.
 const siteConfig = { payTo: "0x000000000000000000000000000000000000dEaD", network: "base-sepolia", ...config };
-const site = { key: "demo-site-key", url: `http://localhost:${port}/service/v1/config` };
+const site = { key: "demo-site-key", url: `http://localhost:${port}/service/v1/config`, events: true };
 let blocked;
 try {
 	app.use("/monitor", fairtoll(config, options));
@@ -91,6 +92,13 @@ app.delete("/service/v1/config", (_req, res) => {
 	serviceConfig = undefined;
 	res.send("The service is down\n");
 });
+// Where /site sends its events. It prints each one it receives, and is down when the config is.
+app.post("/service/v1/events", express.json(), (req, res) => {
+	if (req.get("authorization") !== `Bearer ${site.key}`) return res.status(401).send("Unknown site key\n");
+	if (serviceConfig === undefined) return res.status(503).send("The service is down\n");
+	console.log(`   service received ${JSON.stringify(req.body)}`);
+	res.status(204).end();
+});
 
 const endpoints = [
 	"   /open     no Fairtoll",
@@ -98,7 +106,7 @@ const endpoints = [
 	"   /blocked  Fairtoll answers AI bots and agents with a 403 and lets everyone else through",
 	"   /charged  Fairtoll answers AI bots and agents with a 402 and a price until they pay, and lets everyone else through",
 	"   /paths    Fairtoll charges AI bots and agents under /paths/premium/, blocks them under /paths/private/, and lets the rest through",
-	"   /site     Fairtoll loads its config from the stand-in service at /service/v1/config, and fetches it again after a minute",
+	"   /site     Fairtoll loads its config from the stand-in service at /service/v1/config, fetches it again after a minute, and sends the service its events",
 ].join("\n");
 // Each endpoint answers any request under it with its method, path, and body, so a changed response is easy to see.
 app.use(["/open", "/monitor", "/blocked", "/charged", "/paths", "/site"], express.text({ type: "*/*" }), (req, res) => {

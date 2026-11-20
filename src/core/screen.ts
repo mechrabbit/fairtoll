@@ -1,5 +1,5 @@
-import { classify } from "./classify.js";
-import type { Charge, Config } from "./config.js";
+import { classify, type Classification } from "./classify.js";
+import type { Charge, Config, Network } from "./config.js";
 import { hasDotDotSegment, ruleFor } from "./paths.js";
 import type { RequestClass } from "./types.js";
 
@@ -52,49 +52,55 @@ export interface DecisionEvent {
 	readonly path: string;
 	readonly class: RequestClass;
 	readonly reason: string;
+	/** The AI bot or agent the user-agent names, such as "GPTBot", when it names one. */
+	readonly bot?: string;
 	readonly action: Action["kind"];
+	/** For a charged request, the price in dollars as the config wrote it, such as "0.002". */
+	readonly price?: string;
+	/** For a charged request, the network the price is in. On "base-sepolia" no real money moves. */
+	readonly network?: Network;
+	/** For a charged request, what happened to its payment (see `Payment`). */
+	readonly payment?: Payment;
 }
+
+/**
+ * What happened to a charged request's payment. "paid": it settled, and the page was served. "none": the
+ * request sent no payment and got the 402 with the price. "rejected": it sent a payment that was refused, such
+ * as a reused one, and got the 402. "failed": charging failed, such as when the facilitator couldn't be
+ * reached, so the page was served unpaid.
+ */
+export type Payment = "paid" | "none" | "rejected" | "failed";
 
 export type EventSink = (event: DecisionEvent) => void | Promise<void>;
 
-/** What `screen` decided, and a promise that settles once the decision's log has, and never rejects. */
+/**
+ * What `screen` decided, and how it classified the request. `classification` is missing when screening
+ * failed, so there is nothing true to log.
+ */
 export interface Screened {
 	readonly action: Action;
-	readonly logged: Promise<void>;
+	readonly classification?: Classification;
 }
 
-const nothingLogged = Promise.resolve();
-
 /**
- * Classifies one request, decides what to do with it, and logs the decision. A human request isn't
- * logged, because that would add a line to the app's logs for every page view. An async log isn't
- * awaited, so it adds no wait before the request is handled. Instead `logged` settles once the log has, and
- * never rejects, so a runtime that can stop work once the response is sent, such as a Worker or Vercel, can
- * keep it alive with `waitUntil`. It never throws: if a step fails, it reports the error and allows the
- * request, so the adapter serves the page as if Fairtoll weren't there.
+ * Classifies one request and decides what to do with it. It never throws: if a step fails, it reports the
+ * error and allows the request, so the adapter serves the page as if Fairtoll weren't there.
  *
  * `method` and `path` are what the app routes the request by, with no query string in the path. The adapter
  * passes them, because a Web Request refuses some methods Express serves, and `request.url` resolves dot
  * segments and so can name a different page.
  */
-export function screen(request: Request, method: string, path: string, config: Config, log?: EventSink): Screened {
+export function screen(request: Request, method: string, path: string, config: Config): Screened {
 	try {
-		const { class: cls, reason } = classify(request);
+		const classification = classify(request);
 		// A browser's preflight always names the method it asks about, so an OPTIONS without one is charged.
 		const preflight = method === "OPTIONS" && request.headers.has("access-control-request-method");
 		// robots.txt is always served, so a blocked crawler can still read the site's rules. A 4xx there would
 		// tell it the site has no rules at all.
-		const action = path === "/robots.txt" ? allow : decide(config, cls, preflight, path);
-		if (cls === "human" || !log) return { action, logged: nothingLogged };
-		// The async wrapper turns anything in logging that throws into a rejection, so logging can't change the action.
-		const logged = (async () => {
-			await log({ fairtoll: 1, time: new Date().toISOString(), path, class: cls, reason, action: action.kind });
-		})().catch((error: unknown) => {
-			console.error("fairtoll: logging a request failed, so its event was lost:", error);
-		});
-		return { action, logged };
+		const action = path === "/robots.txt" ? allow : decide(config, classification.class, preflight, path);
+		return { action, classification };
 	} catch (error) {
 		console.error("fairtoll: screening a request failed, so the request was passed through unscreened:", error);
-		return { action: allow, logged: nothingLogged };
+		return { action: allow };
 	}
 }

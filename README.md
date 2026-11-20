@@ -42,11 +42,13 @@ app.use(fairtoll({}, { log: (event) => console.log(JSON.stringify(event)) }));
 The empty config `{}` observes only, so no response changes. Each request from an AI bot or agent is passed to `log` as one event:
 
 ```json
-{"fairtoll":1,"time":"2026-11-04T02:49:04.185Z","path":"/articles/42","class":"unverifiedBot","reason":"user-agent claims GPTBot","action":"allow"}
+{"fairtoll":1,"time":"2026-11-04T02:49:04.185Z","path":"/articles/42","class":"unverifiedBot","reason":"user-agent claims GPTBot","bot":"GPTBot","action":"allow"}
 ```
 
 - `class` is `unverifiedBot` for every AI request for now, because a user-agent is a claim anyone can make.
+- `bot` is the AI bot or agent the user-agent names.
 - `action` is what Fairtoll did: `allow`, `block` or `charge`.
+- A charged request's event also has its `price`, its `network`, and its `payment`: `paid` when the payment settled and the page was served, `none` when the bot sent no payment and got the 402, `rejected` when it sent a payment that was refused and got the 402, and `failed` when charging failed and the page was served unpaid.
 - Requests from readers aren't logged, so your logs don't grow with every page view.
 
 Without `log`, nothing is logged, because a path can carry a secret, such as a password reset token. You choose where events go. `log` can be async. Fairtoll doesn't wait for it, and if it fails, Fairtoll prints the error and the request is unaffected.
@@ -219,7 +221,8 @@ app.use(
 - A field your version of Fairtoll doesn't know is ignored with a warning, and the rest of the config applies. A field that isn't safe to ignore, because it limits what a rule does, is marked as required in the config from fairtoll.net. If your version doesn't know it, Fairtoll keeps your last config and prints that you need to update.
 - A missing or empty key, such as an unset `FAIRTOLL_SITE_KEY`, is a mistake in the options, so it stops your app at startup on Express, and turns Fairtoll off on Next.js, as any other mistake does.
 - Each fetch sends your Fairtoll version, so the dashboard can tell you when a feature needs an update.
-- Without `site`, Fairtoll never contacts fairtoll.net. Events passed to `log` are never sent there.
+- To see your AI traffic and what it paid in the dashboard, add `events: true` to `site`. Fairtoll then posts fairtoll.net each event it would pass to `log`, path included, as it happens. It's off unless you turn it on, because a path can carry a secret. An event that can't be sent is printed as an error and dropped, and the page is unaffected.
+- Without `site`, Fairtoll never contacts fairtoll.net, and without `events: true` it never sends events there.
 
 ## Behind a CDN or cache
 
