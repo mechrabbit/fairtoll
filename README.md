@@ -221,7 +221,7 @@ app.use(
 - A field your version of Fairtoll doesn't know is ignored with a warning, and the rest of the config applies. A field that isn't safe to ignore, because it limits what a rule does, is marked as required in the config from fairtoll.net. If your version doesn't know it, Fairtoll keeps your last config and prints that you need to update.
 - A missing or empty key, such as an unset `FAIRTOLL_SITE_KEY`, is a mistake in the options, so it stops your app at startup on Express, and turns Fairtoll off on Next.js, as any other mistake does.
 - Each fetch sends your Fairtoll version, so the dashboard can tell you when a feature needs an update.
-- To see your AI traffic and what it paid in the dashboard, add `events: true` to `site`. Fairtoll then sends fairtoll.net each event it would pass to `log`, path included, as it happens. It's off unless you turn it on, because a path can carry a secret. An event that can't be sent is printed as an error and dropped, and the page is unaffected.
+- To see your AI traffic and what it paid in the dashboard, add `events: true` to `site`. Fairtoll then sends fairtoll.net each event it would pass to `log`, path included, as it happens. It's off unless you turn it on, because a path can carry a secret. fairtoll.net keeps events for 3 months. An event that can't be sent is printed as an error and dropped, and the page is unaffected.
 - Without `site`, Fairtoll never contacts fairtoll.net, and without `events: true` it never sends events there.
 
 ## Behind a CDN or cache
